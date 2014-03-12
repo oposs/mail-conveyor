@@ -1,0 +1,24 @@
+LDAP:
+    server:       ldap://ldap.example.com
+    binduser:     cn=ldapadmin,dc=example,dc=com
+    bindpassword: secret
+
+    base:         dc=example,dc=com
+    filter:       (&(objectClass=Users)(|(uid=user1)(uid=user2)(uid=user3)))
+
+    userkeyfields:
+        username:    ldapkey1
+        newpassword: _fixed_value_from_commandline_input_
+        oldpassword: ldapkey3
+
+Users:
+    username1: {
+        username: username1,
+        oldpassword: _fixed_value_from_commandline_input_, 
+        newpassword: new
+    }
+    username2: {
+        username: username2,
+        oldpassword: old,
+        newpassword: new
+    }
