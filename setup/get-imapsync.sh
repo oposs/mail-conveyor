@@ -5,10 +5,10 @@
 
 cd $PREFIX/src
 wget https://github.com/imapsync/imapsync/archive/imapsync-1.584.zip
-unzip imapsync-1.584.zip
+unzip -q imapsync-1.584.zip
 
 cd imapsync-imapsync-1.584
-perl -pi -e 's|#!/usr/bin/perl|#!/usr/bin/perl\nuse FindBin;\nuse lib \"\$FindBin::Bin/../../thirdparty/lib/perl5\";|' imapsync 
+perl -pi -e 's|#!/usr/bin/perl|#!/usr/bin/env perl\nuse FindBin;\nuse lib \"\$FindBin::Bin/../../thirdparty/lib/perl5\";|' imapsync 
 cp imapsync $PREFIX/bin
 cd ..
 
