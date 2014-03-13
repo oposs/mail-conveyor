@@ -22,7 +22,7 @@ sub main()
 {
 	my @mandatory = (qw(oldserver=s newserver=s popruxidb=s));
 
-	GetOptions(\%opt, qw(help|h man noaction|no-action|n debug ldap|l userfile|f newpassword=s olduser=s newuser=s), @mandatory ) or exit(1);
+	GetOptions(\%opt, qw(help|h man noaction|no-action|n debug ldap|l userfile|f oldpassword=s newpassword=s olduser=s newuser=s), @mandatory ) or exit(1);
 	if($opt{help})     { pod2usage(1) }
 	if($opt{man})      { pod2usage(-exitstatus => 0, -verbose => 2) }
 	if($opt{noaction}) { die "ERROR: don't know how to \"no-action\".\n" }
@@ -56,11 +56,7 @@ sub main()
 
 	# sync emails
 	for my $user (keys $users) {
-		print "Syncing Mails for User: $user \n";
-
-		# for testing
-		$users->{$user}->{oldpassword} = $opt{oldpassword};
-
+		print "Syncing Mails for User: $user \n";		
 		syncEmailsImap(\%opt, $users->{$user});
 		matchPopUid(\%opt, $users->{$user});
 	}
