@@ -20,7 +20,7 @@ my %opt = ();
 # main loop
 sub main()
 {
-	my @mandatory = (qw(oldserver=s newserver=s popruxidb=s oldpassword=s));
+	my @mandatory = (qw(oldserver=s newserver=s popruxidb=s));
 
 	GetOptions(\%opt, qw(help|h man noaction|no-action|n debug ldap|l userfile|f newpassword=s olduser=s newuser=s), @mandatory ) or exit(1);
 	if($opt{help})     { pod2usage(1) }
