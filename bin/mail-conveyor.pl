@@ -22,50 +22,86 @@ sub main()
 {
 	my @mandatory = (qw(oldserver=s newserver=s popruxidb=s));
 
-	GetOptions(\%opt, qw(help|h man noaction|no-action|n debug ldap|l userfile|f oldpassword=s newpassword=s olduser=s newuser=s), @mandatory ) or exit(1);
-	if($opt{help})     { pod2usage(1) }
-	if($opt{man})      { pod2usage(-exitstatus => 0, -verbose => 2) }
-	if($opt{noaction}) { die "ERROR: don't know how to \"no-action\".\n" }
-	for my $key (map { s/=s//; $_ } @mandatory){
-		if (not defined $opt{$key}){
+	GetOptions(\%opt, qw(help|h man noaction|no-action|n debug ldap|l ldapfilter=s userfile|f oldpassword=s newpassword=s olduser=s newuser=s resetmigrated), @mandatory ) or exit(1);
+	if ($opt{help})    { pod2usage(1);}
+	if ($opt{man})     { pod2usage(-exitstatus => 0, -verbose => 2); }
+	if ($opt{noaction}){ die "ERROR: don't know how to \"no-action\".\n";  }
+
+	for my $key (map { s/=s//; $_ } @mandatory) {
+		if (not defined $opt{$key}) {
 			print STDERR $key.': ';
 			ReadMode('noecho') if $key =~ /pass/;
 			chomp($opt{$key} = <>);
-			if ($key =~ /pass/){
+			if ($key =~ /pass/) {
 				ReadMode(0);
 				print STDERR "\n";
 			}
 		}
 	}
 
+	my $users; my $filter;
+
 	# fetch config
 	my $config = readConfig(\%opt);
-	if($opt{debug}) { print "### Config ###\n", Dumper $config }
+	if ($opt{debug}) { 
+		print "### Config ###\n", Dumper $config;
+	}
 
 	# fetch users
-	my $users;
-	print Dumper $opt{ldap};
-
 	if ($opt{ldap} and not defined $opt{userfile}) {
-		$users = fetchUserFromLDAP(\%opt, $config);
-	}
-	else {
+		$filter = $config->{LDAP}->{filter};
+		$filter =~ s|_LDAPFILTER_|$opt{ldapfilter}|g;
+		if ($opt{debug}) {
+            print "### FILTER ###\n", Dumper $filter;
+        }
+		$users = fetchUserFromLDAP(\%opt, $config, $filter);
+	} else {
 		$users = fetchUserFromfile(\%opt, $config);
 	}
-	if($opt{debug}) { print "### Users ###\n", Dumper $users }
+	if ($opt{debug}) {
+        print "### Users ###\n", Dumper $users;
+    }
+
+	# proceed with selected users
+	proceedWithSelectedUsers($users);
+
+	# special mode for premigration
+	if ($opt{resetmigrated}) {
+		print STDERR "Reset migrated users now \n";
+		adminLDAPWriter(\%opt, $config, $filter, $config->{LDAP}->{premigration});
+		exit 1;
+	}
 
 	# sync emails
 	for my $user (keys $users) {
-		print "Syncing Mails for User: $user \n";		
+		print "Syncing Mails for User: $user \n";
+		$filter = $config->{LDAP}->{filter};
+		$filter =~ s|_LDAPFILTER_|(uid=$user)|g;
+		writeLDAPAttribute(\%opt, $config, $filter, $config->{LDAP}->{migration});
 		syncEmailsImap(\%opt, $users->{$user});
 		matchPopUid(\%opt, $users->{$user});
+		writeLDAPAttribute(\%opt, $config, $filter, $config->{LDAP}->{postmigration});
 	}
+	return 1;
 }
 
 sub readConfig {
 	my $opt = shift;
 	my $config = YAML::XS::LoadFile("$FindBin::Bin/../etc/mail-conveyor.yml");
 	return $config;
+}
+
+sub proceedWithSelectedUsers {
+	my $users = shift;
+	print STDERR "## Selected users: ##\n";
+	for my $user (sort keys $users) {
+		print STDERR " $user \n";
+	}
+	print STDERR "Do you want proceed? Then type here YES \n";
+	chomp(my $proceed = <>);
+	unless ($proceed eq 'YES') {
+		exit 255;
+	}
 }
 
 sub fetchUserFromFile {
@@ -84,42 +120,63 @@ sub fetchUserFromFile {
 	return $users;
 }
 
-sub fetchUserFromLDAP {
+sub __searchInLDAP {
 	my $opt = shift;
-	my $config = shift;
-	my $users = ();
-
-	my $LDAP_HOST         = $config->{LDAP}->{server};
-	my $LDAP_BINDUSER     = $config->{LDAP}->{binduser};
-	my $LDAP_BINDPASSWORD = $config->{LDAP}->{bindpassword};
+	my $host = shift;
+	my $binduser = shift;
+	my $bindpassword = shift;
+	my $base = shift;
+	my $filter = shift;
 
 	# bind to LDAP server
-	my $ldap = Net::LDAP->new($LDAP_HOST);
+	my $ldap = Net::LDAP->new($host);
 	my $mesg = $ldap->bind(
-		$LDAP_BINDUSER ,
-		password => $LDAP_BINDPASSWORD );
+		$binduser ,
+		password => $bindpassword );
 	$mesg->code && die $mesg->error;
 
 	# search and filter entries in LDAP
 	$mesg = $ldap->search(
-		base   => $config->{LDAP}->{base},
-		filter => $config->{LDAP}->{filter}
+		base   => $base,
+		filter => $filter,
 	);
 	$mesg->code && die $mesg->error;
 
-	# check entries
-	if ($mesg->entries == 0) {
-		print "no entries found in LDAP\n";
+	# check entries in debug mode
+	if ($opt{debug}) {
+		print "Users selected in LDAP: \n";
+		if ($mesg->entries == 0) {
+			print "--> no entries found in LDAP <--\n" 
+		}
+		if ($mesg->entries > 1) {
+			print "--> " . $mesg->entries." entries found in LDAP <--\n";
+		}
 	}
-	if ($mesg->entries > 1) {
-		print $mesg->entries." entires found in LDAP\n";
-	}
+
+	return ($ldap, $mesg);
+
+}
+
+sub fetchUserFromLDAP {
+	my $opt = shift;
+	my $config = shift;
+	my $filter = shift;
+	my $users = ();
+
+	my ($ldap, $mesg) = __searchInLDAP( $opt,
+                                        $config->{LDAP}->{server},
+                                        $config->{LDAP}->{binduser},
+                                        $config->{LDAP}->{bindpassword},
+                                        $config->{LDAP}->{base},
+                                        $filter );
 
 	# action loop for all entries
 	for my $node (0 .. ($mesg->entries - 1)) {
-		# print "ID: $node";
 		my $entry = $mesg->entry($node);
 		my $uid = $entry->get_value('uid');
+		if ($opt{debug}) {
+			print "    $node: $uid\n";
+		}
 		for my $key (sort keys $config->{LDAP}->{userkeyfields}){
 			my $value = $config->{LDAP}->{userkeyfields}->{$key};
 			if ($value =~ m/^_/) {
@@ -131,7 +188,34 @@ sub fetchUserFromLDAP {
 			$users->{$uid}->{$key} = $value;
 		}
 	}
+	$ldap->unbind();
 	return $users;
+}
+
+sub writeLDAPAttribute {
+	my $opt = shift;
+	my $config = shift;
+	my $filter = shift;
+	my $modification = shift;
+
+	my ($ldap, $mesg) = __searchInLDAP( $opt,
+                                        $config->{LDAP}->{server},
+                                        $config->{LDAP}->{adminbinduser},
+                                        $config->{LDAP}->{adminbindpassword},
+                                        $config->{LDAP}->{base},
+                                        $filter );
+
+	# action loop for all entries
+	for my $node (0 .. ($mesg->entries - 1)) {
+		my $entry = $mesg->entry($node);
+        my $dn = $entry->dn;
+		my $uid = $entry->get_value('uid');
+		for my $key (keys $modification) {
+			my $ret = $ldap->modify ( $dn, replace => { $key => $modification->{$key} } );
+			print STDERR "$uid : " . $ret->error ."\n";
+		}
+	}
+	$ldap->unbind();
 }
 
 sub syncEmailsImap {
@@ -140,16 +224,17 @@ sub syncEmailsImap {
 
 	my $fh;
 	open($fh,
-		'-|',
-		"$FindBin::Bin/../thirdparty/bin/imapsync",
-		'--host1', 		$opt{oldserver},
-		'--user1', 		$user->{username},
-		'--password1', 	$user->{oldpassword},
-		'--host2', 		$opt{newserver},
-		'--user2', 		$user->{username},
-		'--password2', 	$user->{newpassword},
-		'--folder',     'INBOX',
-		'--delete2') or do { print STDERR "Cannot Sync with imapsync\n"; };
+         '-|',
+         "$FindBin::Bin/../thirdparty/bin/imapsync",
+         '--host1', 	 $user->{oldserver}   ? $user->{oldserver}   : $opt{oldserver},
+         '--user1', 	 $user->{username}    ? $user->{username}    : $opt{oldusername},
+         '--password1',  $user->{oldpassword} ? $user->{oldpassword} : $opt{oldpassword},
+         '--host2', 	 $user->{newserver}   ? $user->{newserver}   : $opt{newserver},
+         '--user2', 	 $user->{username}    ? $user->{username}    : $opt{newusername},
+         '--password2',  $user->{newpassword} ? $user->{newpassword} : $opt{newpassword},
+         '--folder',     'INBOX',
+         '--delete2',
+     ) or do { print STDERR "Cannot Sync with imapsync\n"; };
 
 	while(<$fh>){
 		# chomp;
@@ -166,13 +251,14 @@ sub matchPopUid {
 	open($fh,
          '-|',
          "$FindBin::Bin/../../popruxi/bin/uidmatcher.pl",
-         '--oldserver', $opt{oldserver},
-         '--olduser', 	$user->{username},
-         '--oldpass', 	$user->{oldpassword},
-         '--newserver',	$opt{newserver},
-         '--newuser', 	$user->{username},
-         '--newpass', 	$user->{newpassword},
-         '--dbfile',    $opt{popruxidb}) or do { print STDERR "Cannot sync UIDLs\n"; };
+         '--oldserver', $user->{oldserver}   ? $user->{oldserver}   : $opt{oldserver},
+         '--olduser', 	$user->{username}    ? $user->{username}    : $opt{oldusername},
+         '--oldpass', 	$user->{oldpassword} ? $user->{oldpassword} : $opt{oldpassword},
+         '--newserver',	$user->{newserver}   ? $user->{newserver}   : $opt{newserver},
+         '--newuser', 	$user->{username}    ? $user->{username}    : $opt{newusername},
+         '--newpass', 	$user->{newpassword} ? $user->{newpassword} : $opt{newpassword},
+         '--dbfile',    $opt{popruxidb}
+     ) or do { print STDERR "Cannot sync UIDLs\n"; };
 
 	while (<$fh>) {
 		# chomp;
@@ -196,12 +282,13 @@ B<mail-conveyor.pl> [I<options>...]
 	 --man           show man-page and exit
  -h, --help          display this help and exit
 	 --version       output version information and exit
-	 
+
 	 --debug         prints debug messages
 
 	 --noaction 	 noaction mode
 
  -l  --ldap 		 ldap mode
+     --ldapfilter    search filter for and in LDAP
  -f  --userfile 	 userfile mode
 
 	 --oldserver     old server address
@@ -240,5 +327,6 @@ S<Roman Plessl E<lt>roman.plessl@oetiker.chE<gt>>
 =head1 HISTORY
 
  2014-03-10 rp Initial Version
+ 2014-03-17 rp added self remigration mode (revert migration LDAP flags)
 
 =cut

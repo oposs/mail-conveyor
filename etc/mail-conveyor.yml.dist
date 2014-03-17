@@ -1,15 +1,30 @@
 LDAP:
     server:       ldap://ldap.example.com
-    binduser:     cn=ldapadmin,dc=example,dc=com
+    binduser:     cn=ldapsearchuser,dc=example,dc=com
     bindpassword: secret
 
+    adminbinduser:     cn=ldapadmin,dc=example,dc=com
+    adminbindpassword: verysecret
+
     base:         dc=example,dc=com
-    filter:       (&(objectClass=Users)(|(uid=user1)(uid=user2)(uid=user3)))
+    filter:       (&(objectClass=Users)_LDAPFILTER_)
 
     userkeyfields:
         username:    ldapkey1
         newpassword: _fixed_value_from_commandline_input_
         oldpassword: ldapkey3
+
+    premigration:
+        ldapkey1: value1
+        ldapkey2: value1
+
+    migration:
+        ldapkey1: value2
+        ldapkey2: value4
+
+    postmigration:
+        ldapkey1: value3
+        ldapkey1: value3
 
 Users:
     username1: {
@@ -22,3 +37,4 @@ Users:
         oldpassword: old,
         newpassword: new
     }
+
