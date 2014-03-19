@@ -232,7 +232,6 @@ sub syncEmailsImap {
          '--host2', 	 $user->{newserver}   ? $user->{newserver}   : $opt{newserver},
          '--user2', 	 $user->{username}    ? $user->{username}    : $opt{newusername},
          '--password2',  $user->{newpassword} ? $user->{newpassword} : $opt{newpassword},
-         '--folder',     'INBOX',
          '--delete2',
      ) or do { print STDERR "Cannot Sync with imapsync\n"; };
 
