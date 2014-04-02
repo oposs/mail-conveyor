@@ -23,6 +23,7 @@ done
 for module in \
   Net::LDAP \
   YAML::XS \
+  File::Temp \
 ; do
   perlmodule $module
 done

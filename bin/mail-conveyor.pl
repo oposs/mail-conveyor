@@ -8,10 +8,12 @@ use lib "$FindBin::Bin/../thirdparty/lib/perl5";
 
 use Getopt::Long 2.25 qw(:config posix_default no_ignore_case);
 use Pod::Usage 1.14;
-use Term::ReadKey;
 use Data::Dumper;
 
+use File::Basename;
+use File::Temp qw(tempfile);
 use Net::LDAP;
+use Term::ReadKey;
 use YAML::XS;
 
 # parse options
@@ -19,67 +21,72 @@ my %opt = ();
 
 # main loop
 sub main {
-        my @mandatory = (qw(oldserver=s newserver=s popruxidb=s domain=s cyrusfiles=s));
-        GetOptions(\%opt, qw(help|h man noaction|no-action|n debug ldap|l ldapfilter=s userfile|f oldpassword=s newpassword=s olduser=s newuser=s resetmigrated), @mandatory ) or exit(1);
+    my @mandatory = (qw(oldserver=s newserver=s popruxidb=s));
+    GetOptions(\%opt, qw(help|h man noaction|no-action|n debug ldap|l ldapfilter=s userfile|f cyrusmigration cyrusfiles=s domain=s oldpassword=s newpassword=s olduser=s newuser=s resetmigrated), @mandatory ) or exit(1);
 
-	if ($opt{help})    { pod2usage(1);}
-	if ($opt{man})     { pod2usage(-exitstatus => 0, -verbose => 2); }
-        if ($opt{noaction}){ die "ERROR: don't know how to \"no-action\".\n";  }
+    if ($opt{help})    { pod2usage(1);}
+    if ($opt{man})     { pod2usage(-exitstatus => 0, -verbose => 2); }
+    if ($opt{noaction}){ die "ERROR: don't know how to \"no-action\".\n";  }
 
-        for my $key (map { s/=s//; $_ } @mandatory) {
-            if (not defined $opt{$key}) {
-                print STDERR $key.': ';
-                ReadMode('noecho') if $key =~ /pass/;
-                chomp($opt{$key} = <>);
-                if ($key =~ /pass/) {
-                    ReadMode(0);
-                    print STDERR "\n";
-                }
+    for my $key (map { s/=s//; $_ } @mandatory) {
+        if (not defined $opt{$key}) {
+            print STDERR $key.': ';
+            ReadMode('noecho') if $key =~ /pass/;
+            chomp($opt{$key} = <>);
+            if ($key =~ /pass/) {
+                ReadMode(0);
+                print STDERR "\n";
             }
         }
+    }
 
-        my $users; my $filter;
+    my ($users, $filter);
 
-        # fetch config
-        my $config = readConfig();
+    # fetch config
+    my $config = readConfig();
 
-        # fetch users
-        if ($opt{ldap} and not defined $opt{userfile}) {
-            $filter = $config->{LDAP}->{filter};
-            $filter =~ s|_LDAPFILTER_|$opt{ldapfilter}|g;
-            $users = fetchUserFromLDAP($config, $filter);
-        } else {
-            $users = fetchUserFromfile($config);
-        }
+    # fetch users
+    if ($opt{ldap} and not defined $opt{userfile}) {
+        $filter = $config->{LDAP}->{filter};
+        $filter =~ s|_LDAPFILTER_|$opt{ldapfilter}|g;
+        $users = fetchUserFromLDAP($config, $filter);
+    } else {
+        $users = fetchUserFromfile($config);
+    }
 
-        # ask proceed with selected users
-        proceedWithSelectedUsers($users);
+    # ask proceed with selected users
+    proceedWithSelectedUsers($users);
 
-        # special mode for premigration
-        if ($opt{resetmigrated}) {
-            print STDERR "Reset migrated users now \n";
-            adminLDAPWriter($config, $filter, $config->{LDAP}->{premigration});
-            exit 0;
-        }
-
-        # get provisioning commands
-        my $ret = getZimbraProvisioningCommands($users);
-        setZimbraProvisioningCommands($config, $ret);
-
-        # sync emails
-        for my $user (keys $users) {
-            print "Syncing Mails for User: $user \n";
-            $filter = $config->{LDAP}->{filter};
-            $filter =~ s|_LDAPFILTER_|(uid=$user)|g;
-            writeLDAPAttribute($config, $filter, $config->{LDAP}->{migration});
-            syncEmailsImap($users->{$user});
-            matchPopUid($users->{$user});
-            writeLDAPAttribute($config, $filter, $config->{LDAP}->{postmigration});
-        }
+    # special mode for premigration
+    if ($opt{resetmigrated}) {
+        print STDERR "Reset migrated users now \n";
+        adminLDAPWriter($config, $filter, $config->{LDAP}->{premigration});
         exit 0;
     }
 
-sub readConfig {	
+    if ($opt{cyrusmigration}) {
+        # data from cyrus and provide data to zimbra
+        my ($fh, $filename) = tempfile();
+        getZimbraProvisioningCommands($users,  $fh, $filename);
+        setZimbraProvisioningCommands($config, $fh, $filename);
+        File::Temp::cleanup();
+    }
+
+    # sync emails
+    for my $user (keys $users) {
+        print "Syncing Mails for User: $user \n";
+        $filter = $config->{LDAP}->{filter};
+        $filter =~ s|_LDAPFILTER_|(uid=$user)|g;
+        writeLDAPAttribute($config, $filter, $config->{LDAP}->{migration});
+        syncEmailsImap($users->{$user});
+        matchPopUid($users->{$user});
+        writeLDAPAttribute($config, $filter, $config->{LDAP}->{postmigration});
+    }
+    exit 0;
+}
+
+
+sub readConfig {
 	my $config = YAML::XS::LoadFile("$FindBin::Bin/../etc/mail-conveyor.yml");
 	if ($opt{debug}) { 
 		print "### Config ###\n", Dumper $config;
@@ -143,7 +150,7 @@ sub __searchInLDAP {
 	if ($opt{debug}) {
 		print "Users selected in LDAP: \n";
 		if ($mesg->entries == 0) {
-			print "--> no entries found in LDAP <--\n" 
+			print "--> no entries found in LDAP <--\n";
 		}
 		if ($mesg->entries > 1) {
 			print "--> " . $mesg->entries." entries found in LDAP <--\n";
@@ -154,7 +161,7 @@ sub __searchInLDAP {
 
 }
 
-sub fetchUserFromLDAP {	
+sub fetchUserFromLDAP {
 	my $config = shift;
 	my $filter = shift;
 	my $users = ();
@@ -162,7 +169,6 @@ sub fetchUserFromLDAP {
 	if ($opt{debug}) {
 		print "### FILTER ###\n", Dumper $filter;
 	}
-	
 	my ($ldap, $mesg) = __searchInLDAP( $config->{LDAP}->{server},
                                         $config->{LDAP}->{binduser},
                                         $config->{LDAP}->{bindpassword},
@@ -193,7 +199,7 @@ sub fetchUserFromLDAP {
 	return $users;
 }
 
-sub writeLDAPAttribute {	
+sub writeLDAPAttribute {
 	my $config = shift;
 	my $filter = shift;
 	my $modification = shift;
@@ -261,45 +267,91 @@ sub matchPopUid {
 	close($fh);
 }
 
-sub getZimbraProvisioningCommands {	
-	my $users = shift;
-	my $fh;
-	my $ret;
-	my @args = (
-		"$FindBin::Bin/../../popruxi/bin/cyrus2zmprov.pl",
+sub getZimbraProvisioningCommands {
+    my $users = shift;
+    my $temp_fh = shift;
+    my $temp_filename = shift;
+
+    my $cyrus2zmprov;
+    my $commands;
+
+    my @args = (
+        "$FindBin::Bin/../../popruxi/bin/cyrus2zmprov.pl",
         '--root',      $opt{cyrusfiles},
         '--domain',    $opt{domain}
-    );      
-	for my $user (keys $users) {
-		push @args, "$users->{$user}->{username}=$users->{$user}->{alias}";
-	}
-    open( $fh, '-|', @args ) or 
-    	do { print STDERR "Cannot create cyrus2zmprov script\n"; };
-    while (<$fh>) {
-        print $ret $_;
+    );
+    for my $user (keys $users) {
+        push @args, "$users->{$user}->{username}=$users->{$user}->{alias}";
     }
-	close($fh);
-	return $ret;
+
+    open ($temp_fh);
+    open ($cyrus2zmprov,
+          '-|',
+          @args
+      ) or do { print STDERR "Cannot run cyrus2zmprov script\n"; };
+    while (<$cyrus2zmprov>) {
+        print $_;
+        print $temp_fh $_;
+    }
+    close($cyrus2zmprov);
+    close($temp_fh);
 }
 
-sub setZimbraProvisioningCommands {
-	my $config = shift;
-	my $input = shift;
-	my $fh;
-	open($fh,
-	 	'-|',
-	 	'/usr/bin/ssh',
-	 	'-l', $config->{ZimbraSSH}->{login},
-	 	'-i', $config->{ZimbraSSH}->{keyfile},
-	 		  $config->{ZimbraSSH}->{host},
-	 		  $config->{ZimbraSSH}->{zmprov},
-	 		  $input	 		  
-	 	) or do { print STDERR "Cannot call remote ssh\n"; };
-	 while(<$fh>){
-	 	# chomp;
-	 	print $_;
-	 }
-	 close($fh);
+sub activateZimbraProvisioningCommands {
+    my $config = shift;
+    my $temp_fh = shift;
+    my $temp_filename = shift;
+    my $fh;
+
+    my $temp_filename_dir  = dirname($temp_filename);
+    my $temp_filename_name = basename($temp_filename);
+    my @scp_args = (
+        '/usr/bin/scp',
+        '-i', $config->{ZimbraSSH}->{keyfile},
+        "$temp_filename",
+        "$config->{ZimbraSSH}->{login}\@$config->{ZimbraSSH}->{host}:$temp_filename_dir/$temp_filename_name",
+    );
+    open ($fh,
+          '-|',
+          @scp_args
+      ) or do { print STDERR "Cannot run transfer data to Zimbra host\n"; };
+    close($fh);
+
+    my @ssh_args = (
+        '/usr/bin/ssh',
+        '-l', $config->{ZimbraSSH}->{login},
+        '-i', $config->{ZimbraSSH}->{keyfile},
+        $config->{ZimbraSSH}->{host},
+        $config->{ZimbraSSH}->{zmprov},
+        '-f', "$temp_filename_dir/$temp_filename_name"
+    );
+    open($fh,
+         '-|',
+         @ssh_args
+     ) or do { print STDERR "Cannot call remote zmprov\n"; };
+    while(<$fh>){
+        # chomp;
+        print $_;
+    }
+    close($fh);
+
+    @ssh_args = (
+        '/usr/bin/ssh',
+        '-l', $config->{ZimbraSSH}->{login},
+        '-i', $config->{ZimbraSSH}->{keyfile},
+        $config->{ZimbraSSH}->{host},
+        '/usr/bin/unlink',
+        "$temp_filename_dir/$temp_filename_name"
+    );
+    open($fh,
+         '-|',
+         @ssh_args
+     ) or do { print STDERR "Cannot unlink file $temp_filename\n"; };
+    while(<$fh>){
+        # chomp;
+        print $_;
+    }
+    close($fh);
 }
 
 main;
@@ -314,32 +366,33 @@ mail-conveyor.pl - migrates emails from one to another email system
 
 B<mail-conveyor.pl> [I<options>...]
 
-     --man           show man-page and exit
- -h, --help          display this help and exit
-     --version       output version information and exit
+     --man            show man-page and exit
+ -h, --help           display this help and exit
+     --version        output version information and exit
 
-     --debug         prints debug messages
+     --debug          prints debug messages
 
-     -noaction       noaction mode
+     -noaction        noaction mode
 
- -l  --ldap          ldap mode
-     --ldapfilter    search filter for and in LDAP
- -f  --userfile      userfile mode
+ -l  --ldap           ldap mode
+     --ldapfilter     search filter for and in LDAP
+ -f  --userfile       userfile mode
 
-     --oldserver     old server address
-     --newserver     new server address
+     --oldserver      old server address
+     --newserver      new server address
 
-     --propruxidb    path and name to popruxi database
-     --cyrusfiles    path to cyrus files for cyrus2zmprov
+     --propruxidb     path and name to popruxi database
+     --cyrusmigration enables cyrus2zmprov / Cyrus -> Zimbra migration
+     --cyrusfiles     path to cyrus files for cyrus2zmprov
+     --domain         email domain for cyrus2zmprov
 
 =head1 DESCRIPTION
 
-This tool migrate users from one email system to another and integrates 
+This tool migrate users from one email system to another and integrates
 the toolboxes and scripts of imapsync and popruxi.
 
-This script will get an amount of users from LDAP or from a flatfile and will
-process the email migration for each user.
-
+This script will get an amount of users from LDAP or from a flatfile
+and will process the email migration for each user.
 
 =head1 LICENSE
 
@@ -367,3 +420,14 @@ S<Roman Plessl E<lt>roman.plessl@oetiker.chE<gt>>
  2014-04-02 rp added cyrus2zimbra parts from popruxi
 
 =cut
+
+# Emacs Configuration
+#
+# Local Variables:
+# mode: cperl
+# eval: (cperl-set-style "PerlStyle")
+# mode: flyspell
+# mode: flyspell-prog
+# End:
+#
+# vi: sw=4
