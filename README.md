@@ -38,9 +38,25 @@ addapt the config file from
 
 Usage
 -----
-	$ ./bin/mail-conveyor.pl \
-	    --oldserver=oldserver.example.com \
-	    --newserver=newserver.example.com \
-	    --popruxidb=./var/uidmatcher.db \
-	    --ldap \
-	    --debug
+Migrate email accounts
+
+    $ ./bin/mail-conveyor.pl \
+      --oldserver oldserver.example.com \
+      --newserver newserver.example.com \
+      --popruxidb ./var/uidmatcher.db \
+      --debug \
+      --ldap \
+      --ldapfilter '(|(uid=user1)(uid=user2))' \
+      --cyrusmigration \
+      --domain example.com \      
+      --cyrusfiles /home/mailsync/cyrus_data 
+
+Revert LDAP fields
+
+    $ ./bin/mail-conveyor.pl \
+      --oldserver oldserver.example.com \
+      --newserver newserver.example.com \
+      --debug \
+      --ldap \
+      --ldapfilter '(|(uid=user1)(uid=user2))' \
+      --resetmigrated
