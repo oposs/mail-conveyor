@@ -60,3 +60,62 @@ Revert LDAP fields
       --ldap \
       --ldapfilter '(|(uid=user1)(uid=user2))' \
       --resetmigrated
+
+
+Bulk Creation of Zimbra Accounts
+--------------------------------
+zimbra-bulk-create.pl will query an LDAP server for user attributes. 
+
+The LDAP search amount can be filtered by the filter argument in the 
+config file and also with the ldapfilter argument on the command line.
+
+zimbra-build-create will print an zmprov output which can be inserted
+to the Zimbra system with
+
+    zmprov -f zimbra-bulk-create.txt
+
+### Example
+
+Example configuration file:
+
+Content of ./etc/zimbra-bulk-create.yml
+
+   LDAP:
+       server:       ldap://ldap.example.com
+       binduser:     cn=ldapsearchuser,dc=example,dc=com
+       bindpassword: secret
+       base:         dc=example,dc=com
+       filter:       (&(objectClass=Users)_LDAPFILTER_)
+
+       specialfields:
+           username:   uid
+           alias:      mail
+           password:   plainpassword
+
+       fields:
+           gn:               givenname
+           sn:               sn
+           c:                c
+           zimbraPrefLocale: lang
+
+Run bulk creation script:
+
+  ./bin/zimbra-bulk-create.pl \
+       --defaultdomain=example.com \
+       --defaultcosid=ABCD-EFG-1234 \
+       --ldapfilter '(uid=rplessl)'
+
+   ## Selected users: ##
+      rplessl
+   Do you want proceed? Then type here YES
+
+Output will be:
+
+   createAccount rplessl@example.com PASSWORD \
+	   displayname "Roman Plessl" \
+           zimbraPasswordMustChange FALSE \
+	   zimbraPrefLocale de \
+	   gn Roman \
+	   sn Plessl \
+	   c CH \
+	   zimbraCOSid ABCD-EFG-1234
