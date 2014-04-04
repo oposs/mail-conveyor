@@ -80,7 +80,8 @@ Example configuration file:
 
 Content of ./etc/zimbra-bulk-create.yml
 
-   LDAP:
+     LDAP:
+  
        server:       ldap://ldap.example.com
        binduser:     cn=ldapsearchuser,dc=example,dc=com
        bindpassword: secret
@@ -100,18 +101,18 @@ Content of ./etc/zimbra-bulk-create.yml
 
 Run bulk creation script:
 
-  ./bin/zimbra-bulk-create.pl \
+     ./bin/zimbra-bulk-create.pl \
        --defaultdomain=example.com \
        --defaultcosid=ABCD-EFG-1234 \
        --ldapfilter '(uid=rplessl)'
 
-   ## Selected users: ##
-      rplessl
-   Do you want proceed? Then type here YES
+     ## Selected users: ##
+       rplessl
+     Do you want proceed? Then type here YES
 
 Output will be:
 
-   createAccount rplessl@example.com PASSWORD \
+     createAccount rplessl@example.com PASSWORD \
 	   displayname "Roman Plessl" \
            zimbraPasswordMustChange FALSE \
 	   zimbraPrefLocale de \
