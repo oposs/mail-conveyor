@@ -1,0 +1,18 @@
+LDAP:
+    server:       ldap://ldap.example.com
+    binduser:     cn=ldapsearchuser,dc=example,dc=com
+    bindpassword: secret
+    base:         dc=example,dc=com
+    filter:       (&(objectClass=Users)_LDAPFILTER_)
+
+    specialfields:
+        username:   uid
+        alias:      mail
+        password:   plainpassword
+
+    fields:
+        gn:               givenname
+        sn:               sn
+        c:                c
+        zimbraPrefLocale: lang  
+
