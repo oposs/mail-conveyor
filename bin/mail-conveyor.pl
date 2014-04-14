@@ -60,7 +60,7 @@ sub main {
     # special mode for premigration
     if ($opt{resetmigrated}) {
         print STDERR "Reset migrated users now \n";
-        adminLDAPWriter($config, $filter, $config->{LDAP}->{premigration});
+        writeLDAPAttribute($config, $filter, $config->{LDAP}->{premigration});
         exit 0;
     }
 
