@@ -68,7 +68,7 @@ sub main {
         # data from cyrus and provide data to zimbra
         my ($fh, $filename) = tempfile();
         getZimbraProvisioningCommands($users,  $fh, $filename);
-        setZimbraProvisioningCommands($config, $fh, $filename);
+        activateZimbraProvisioningCommands($config, $fh, $filename);
         File::Temp::cleanup();
     }
 
