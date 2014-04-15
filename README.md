@@ -36,6 +36,22 @@ addapt the config file from
     $ cp ./etc/mail-conveyor.yml.dist ./etc/mail-conveyor.yml
     $ vim ./etc/mail-conveyor.yml
 
+
+SSH Setup for cyrusmigration
+----------------------------
+The user configured in 
+
+    /opt/oss/mailconveyor/etc/mail-conveyor.yml
+
+    Section ZimbraSSH
+
+should be able to ssh to the Zimbra system with public key authentication
+and without a keyring password. 
+
+Please set up such an environment which fits your system guidelines and
+system adminstration steps.
+
+
 Usage
 -----
 Migrate email accounts
