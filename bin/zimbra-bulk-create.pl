@@ -21,7 +21,7 @@ my %opt = ();
 # main loop
 sub main {
     my @mandatory = (qw(defaultcosid=s defaultdomain=s));
-    GetOptions(\%opt, qw(help|h man noaction|no-action|n debug ldapfilter=s), @mandatory) or exit(1);
+    GetOptions(\%opt, qw(help|h man noaction|no-action|n debug ldapuserfilter=s ldapgroupfilter=s), @mandatory) or exit(1);
 
     for my $key (map { s/=s//; $_ } @mandatory) {
         if (not defined $opt{$key}) {
@@ -42,10 +42,16 @@ sub main {
     # fetch config
     my $config = readConfig();
 
-    # fetch users
-    my $filter = $config->{LDAP}->{filter};
-       $filter =~ s|_LDAPFILTER_|$opt{ldapfilter}|g;
-    my $users  = fetchUserFromLDAP($config, $filter);
+    # apply filter mechanism
+    my $groupfilter = $config->{LDAP}->{groupfilter};
+       $groupfilter =~ s|_LDAPGROUPFILTER_|$opt{ldapgroupfilter}|g;
+       $config->{LDAP}->{groupfilter} = $groupfilter;
+
+    my $userfilter = $config->{LDAP}->{userfilter};
+       $userfilter =~ s|_LDAPUSERFILTER_|$opt{ldapuserfilter}|g;
+       $config->{LDAP}->{userfilter} = $userfilter;
+
+    my $users  = fetchUserFromLDAP($config;
 
     # ask proceed with selected users
     proceedWithSelectedUsers($users);
@@ -57,83 +63,119 @@ sub main {
 
 
 sub readConfig {
-	my $config = YAML::XS::LoadFile("$FindBin::Bin/../etc/zimbra-bulk-create.yml");
-	if ($opt{debug}) { 
-		say "### Config ###", Dumper $config;
-	}
-	return $config;
+    my $config = YAML::XS::LoadFile("$FindBin::Bin/../etc/zimbra-bulk-create.yml");
+    if ($opt{debug}) {
+        say "### Config ###", Dumper $config;
+    }
+    return $config;
 }
 
 sub proceedWithSelectedUsers {
-	my $users = shift;
-	say "## Selected users: ##";
-	for my $user (sort keys $users) {
-		say " $user ";
-	}
-	say "Do you want proceed? Then type here YES";
-	chomp(my $proceed = <>);
-	unless ($proceed eq 'YES') {
-		exit 255;
-	}
+    my $users = shift;
+    say "## Selected users: ##";
+    for my $user (sort keys $users) {
+        say " $user ";
+    }
+    say "Do you want proceed? Then type here YES";
+    chomp(my $proceed = <>);
+    unless ($proceed eq 'YES') {
+        exit 255;
+    }
 }
 
 sub __searchInLDAP {
-	my $host = shift;
-	my $binduser = shift;
-	my $bindpassword = shift;
-	my $base = shift;
-	my $filter = shift;
+    my $host = shift;
+    my $binduser = shift;
+    my $bindpassword = shift;
+    my $base = shift;
+    my $filter = shift;
 
-	# bind to LDAP server
-	my $ldap = Net::LDAP->new($host);
-	my $mesg = $ldap->bind(
-		$binduser ,
-		password => $bindpassword );
-	$mesg->code && die $mesg->error;
+    # bind to LDAP server
+    my $ldap = Net::LDAP->new($host);
+    my $mesg = $ldap->bind(
+        $binduser ,
+        password => $bindpassword );
+    $mesg->code && die $mesg->error;
 
-	# search and filter entries in LDAP
-	$mesg = $ldap->search(
-		base   => $base,
-		filter => $filter,
-	);
-	$mesg->code && die $mesg->error;
+    # search and filter entries in LDAP
+    $mesg = $ldap->search(
+        base   => $base,
+        filter => $filter,
+    );
+    $mesg->code && die $mesg->error;
 
-	# check entries in debug mode
-	if ($opt{debug}) {
-		say "Nodes selected in LDAP:";
-		if ($mesg->entries == 0) {
-			say "--> no entries found in LDAP <--";
-		}
-		if ($mesg->entries > 1) {
-			say "--> " . $mesg->entries." entries found in LDAP <--";
-		}
-	}
-
-	return ($ldap, $mesg);
-
+    if ($opt{debug}) {
+        # print entries in debug mode
+        say "Nodes selected in LDAP:";
+        if ($mesg->entries == 0) {
+            say "--> no entries found in LDAP <--";
+        }
+        if ($mesg->entries > 1) {
+            say "--> " . $mesg->entries." entries found in LDAP <--";
+        }
+    }
+    return ($ldap, $mesg);
 }
 
 sub fetchUserFromLDAP {
-	my $config = shift;
-	my $filter = shift;
-	my $users = ();
+    my $config = shift;
+    my $groupfilter = $config->{LDAP}->{groupfilter};
+    my $userfilter  = $config->{LDAP}->{userfilter};
 
-	if ($opt{debug}) {
-		say "### FILTER ###", Dumper $filter;
-	}
-	my ($ldap, $mesg) = __searchInLDAP( $config->{LDAP}->{server},
+    if ($opt{debug}) {
+        say "### FILTER ###", Dumper { groupfilter => $groupfilter, userfilter => $userfilter };
+    }
+
+    my ($ldap, $mesg);
+    my $uids = ();
+    my $users = ();
+
+    if ($groupfilter) {
+        ($ldap, $mesg) = __searchInLDAP( $config->{LDAP}->{server},
+                                         $config->{LDAP}->{binduser},
+                                         $config->{LDAP}->{bindpassword},
+                                         $config->{LDAP}->{groupbase},
+                                         $groupfilter );
+
+        # action loop for all group entries
+        for my $node (0 .. ($mesg->entries - 1)) {
+            my $entry = $mesg->entry($node);
+            my $dn = $entry->get_value('dn');
+            my @uniquemembers = @{$entry->get_value('uniquemember')};
+            if ($opt{debug}) {
+                say "## Result ##";
+                for (@uniquemembers) { say "# $dn: $_"; }
+            }
+            for my $dn (@uniquemembers) {
+                my $uid = shift ( split /,/, $dn );
+                push $uids, $uid;
+            }
+        }
+    }
+
+    if ($uids) {
+        $userfilter .= "|(";
+        for $uid (@{$uids}) {
+            $userfilter .= "(uid=$uid)"
+        }
+        $userfilter .= ")";
+    }
+
+    ($ldap, $mesg) = __searchInLDAP(    $config->{LDAP}->{server},
                                         $config->{LDAP}->{binduser},
                                         $config->{LDAP}->{bindpassword},
-                                        $config->{LDAP}->{base},
-                                        $filter );
+                                        $config->{LDAP}->{userbase},
+                                        $userfilter );
 
-	# action loop for all entries
-	for my $node (0 .. ($mesg->entries - 1)) {
-		my $entry = $mesg->entry($node);
-		my $uid = $entry->get_value('uid');
-		if ($opt{debug}) {
-			say "    $node: $uid";
-		}
+    # action loop for all user entries
+    for my $node (0 .. ($mesg->entries - 1)) {
+        my $entry = $mesg->entry($node);
+        my $dn = $entry->get_value('dn');
+        my $uid = $entry->get_value('uid');
+        if ($opt{debug}) {
+                say "## Result ##";
+                say "# $dn: $_";
+        }
         for my $key (sort keys $config->{LDAP}->{specialfields}) {
             my $value = $entry->get_value($config->{LDAP}->{specialfields}->{$key});
             $users->{$uid}->{specialfields}->{$key} = $value;
@@ -142,16 +184,18 @@ sub fetchUserFromLDAP {
             my $value = $entry->get_value($config->{LDAP}->{fields}->{$key});
             $users->{$uid}->{fields}->{$key} = $value;
         }
-	}
-	$ldap->unbind();
-	if ($opt{debug}) {
-        	say "### Users ###", Dumper $users;
-    	}
-	return $users;
+    }
+
+    $ldap->unbind();
+
+    if ($opt{debug}) {
+        say "### Users ###", Dumper $users;
+    }
+    return $users;
 }
 
 sub printZmprov {
-	my $users = shift;
+    my $users = shift;
     for my $user (sort keys $users){
         my $create;
         $create .= 'createAccount'.' ';
@@ -239,13 +283,13 @@ Run bulk creation script:
    Do you want proceed? Then type here YES
 
     createAccount rplessl@example.com PASSWORD \
-	   displayname "Roman Plessl" \
+       displayname "Roman Plessl" \
        zimbraPasswordMustChange FALSE \
-	   zimbraPrefLocale de \
-	   gn Roman \
-	   sn Plessl \
-	   c CH \
-	   zimbraCOSid ABCD-EFG-1234
+       zimbraPrefLocale de \
+       gn Roman \
+       sn Plessl \
+       c CH \
+       zimbraCOSid ABCD-EFG-1234
 
 
 =head1 LICENSE

@@ -2,8 +2,12 @@ LDAP:
     server:       ldap://ldap.example.com
     binduser:     cn=ldapsearchuser,dc=example,dc=com
     bindpassword: secret
-    base:         dc=example,dc=com
-    filter:       (&(objectClass=Users)_LDAPFILTER_)
+
+    groupbase:    o=Providers,dc=example,dc=com
+    groupfilter:  (&(objectClass=groupOfUniqueNames)_LDAPGROUPFILTER_)
+
+    userbase:     cn=Users,dc=example,dc=com
+    userfilter:   (&(objectClass=Users)_LDAPFILTER_)
 
     specialfields:
         username:   uid
