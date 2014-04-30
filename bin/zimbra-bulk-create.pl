@@ -43,17 +43,16 @@ sub main {
     my $config = readConfig();
 
     # apply filter mechanism
-    if ($opt{ldapgroupfilter}) {
-     my $groupfilter = $config->{LDAP}->{groupfilter};
-        $groupfilter =~ s|_LDAPGROUPFILTER_|$opt{ldapgroupfilter}|g;
-        $config->{LDAP}->{groupfilter} = $groupfilter;
-    }
+    $opt{ldapgroupfilter} = $opt{ldapgroupfilter} // '';
+    $opt{ldapuserfilter}  = $opt{ldapuserfilter}  // '';
 
-    if ($opt{ldapuserfilter}) {
-     my $userfilter = $config->{LDAP}->{userfilter};
-        $userfilter =~ s|_LDAPUSERFILTER_|$opt{ldapuserfilter}|g;
-        $config->{LDAP}->{userfilter} = $userfilter;
-    }
+    my $groupfilter = $config->{LDAP}->{groupfilter};
+       $groupfilter =~ s|_LDAPGROUPFILTER_|$opt{ldapgroupfilter}|g;
+       $config->{LDAP}->{groupfilter} = $groupfilter;
+
+    my $userfilter = $config->{LDAP}->{userfilter};
+       $userfilter =~ s|_LDAPUSERFILTER_|$opt{ldapuserfilter}|g;
+       $config->{LDAP}->{userfilter} = $userfilter;
 
     my $users  = fetchUserFromLDAP($config);
 
