@@ -1,10 +1,11 @@
 #!/usr/bin/env perl
-
-require 5.014;
+use warnings;
 use strict;
 
 use FindBin;
 use lib "$FindBin::Bin/../thirdparty/lib/perl5";
+
+use 5.010;
 
 use Getopt::Long 2.25 qw(:config posix_default no_ignore_case);
 use Pod::Usage 1.14;
@@ -49,7 +50,7 @@ sub main {
     # ask proceed with selected users
     proceedWithSelectedUsers($users);
 
-    # print zmprov
+    # print zmprov commands to STDOUT
     printZmprov($users);
     exit 0;
 }
@@ -58,18 +59,18 @@ sub main {
 sub readConfig {
 	my $config = YAML::XS::LoadFile("$FindBin::Bin/../etc/zimbra-bulk-create.yml");
 	if ($opt{debug}) { 
-		print "### Config ###\n", Dumper $config;
+		say "### Config ###", Dumper $config;
 	}
 	return $config;
 }
 
 sub proceedWithSelectedUsers {
 	my $users = shift;
-	print STDERR "## Selected users: ##\n";
+	say "## Selected users: ##";
 	for my $user (sort keys $users) {
-		print STDERR " $user \n";
+		say " $user ";
 	}
-	print STDERR "Do you want proceed? Then type here YES \n";
+	say "Do you want proceed? Then type here YES";
 	chomp(my $proceed = <>);
 	unless ($proceed eq 'YES') {
 		exit 255;
@@ -99,12 +100,12 @@ sub __searchInLDAP {
 
 	# check entries in debug mode
 	if ($opt{debug}) {
-		print "Users selected in LDAP: \n";
+		say "Nodes selected in LDAP:";
 		if ($mesg->entries == 0) {
-			print "--> no entries found in LDAP <--\n";
+			say "--> no entries found in LDAP <--";
 		}
 		if ($mesg->entries > 1) {
-			print "--> " . $mesg->entries." entries found in LDAP <--\n";
+			say "--> " . $mesg->entries." entries found in LDAP <--";
 		}
 	}
 
@@ -118,7 +119,7 @@ sub fetchUserFromLDAP {
 	my $users = ();
 
 	if ($opt{debug}) {
-		print "### FILTER ###\n", Dumper $filter;
+		say "### FILTER ###", Dumper $filter;
 	}
 	my ($ldap, $mesg) = __searchInLDAP( $config->{LDAP}->{server},
                                         $config->{LDAP}->{binduser},
@@ -131,7 +132,7 @@ sub fetchUserFromLDAP {
 		my $entry = $mesg->entry($node);
 		my $uid = $entry->get_value('uid');
 		if ($opt{debug}) {
-			print "    $node: $uid\n";
+			say "    $node: $uid";
 		}
         for my $key (sort keys $config->{LDAP}->{specialfields}) {
             my $value = $entry->get_value($config->{LDAP}->{specialfields}->{$key});
@@ -144,7 +145,7 @@ sub fetchUserFromLDAP {
 	}
 	$ldap->unbind();
 	if ($opt{debug}) {
-        	print "### Users ###\n", Dumper $users;
+        	say "### Users ###", Dumper $users;
     	}
 	return $users;
 }
