@@ -51,7 +51,7 @@ sub main {
        $userfilter =~ s|_LDAPUSERFILTER_|$opt{ldapuserfilter}|g;
        $config->{LDAP}->{userfilter} = $userfilter;
 
-    my $users  = fetchUserFromLDAP($config;
+    my $users  = fetchUserFromLDAP($config);
 
     # ask proceed with selected users
     proceedWithSelectedUsers($users);
@@ -155,7 +155,7 @@ sub fetchUserFromLDAP {
 
     if ($uids) {
         $userfilter .= "|(";
-        for $uid (@{$uids}) {
+        for my $uid (@{$uids}) {
             $userfilter .= "(uid=$uid)"
         }
         $userfilter .= ")";
