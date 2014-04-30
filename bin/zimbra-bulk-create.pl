@@ -69,7 +69,8 @@ sub main {
 sub readConfig {
     my $config = YAML::XS::LoadFile("$FindBin::Bin/../etc/zimbra-bulk-create.yml");
     if ($opt{debug}) {
-        say "### Config ###", Dumper $config;
+        say "### Config ###";
+        say Dumper $config;
     }
     return $config;
 }
@@ -127,7 +128,8 @@ sub fetchUserFromLDAP {
     my $userfilter  = $config->{LDAP}->{userfilter};
 
     if ($opt{debug}) {
-        say "### FILTER ###", Dumper { groupfilter => $groupfilter, userfilter => $userfilter };
+        say "### FILTER ###";
+        say Dumper { groupfilter => $groupfilter, userfilter => $userfilter };
     }
 
     my ($ldap, $mesg);
@@ -193,7 +195,8 @@ sub fetchUserFromLDAP {
     $ldap->unbind();
 
     if ($opt{debug}) {
-        say "### Users ###", Dumper $users;
+        say "### Users ###";
+        say Dumper $users;
     }
     return $users;
 }
