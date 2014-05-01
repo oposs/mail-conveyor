@@ -56,25 +56,30 @@ Usage
 -----
 Migrate email accounts
 
-    $ ./bin/mail-conveyor.pl \
+  $ ./bin/mail-conveyor.pl \
       --oldserver oldserver.example.com \
       --newserver newserver.example.com \
       --popruxidb ./var/uidmatcher.db \
       --debug \
       --ldap \
-      --ldapfilter '(|(uid=user1)(uid=user2))' \
+      --ldapgroupfilter '(cn=MigrationGroup)' \
+      --ldapuserfilter '(|(uid=user1)(uid=user2))' \
       --cyrusmigration \
-      --domain example.com \      
-      --cyrusfiles /home/mailsync/cyrus_data 
+      --domain example.com \
+      --cyrusfiles /home/mailsync/cyrus_data
 
-Revert LDAP fields
+#Revert LDAP migration
+
+The mail conveyor has a revert mode which resets the LDAP configration
+to the old configuration. This allows in tests to rerun the migration.
 
     $ ./bin/mail-conveyor.pl \
       --oldserver oldserver.example.com \
       --newserver newserver.example.com \
       --debug \
       --ldap \
-      --ldapfilter '(|(uid=user1)(uid=user2))' \
+      --ldapgroupfilter '(cn=MigrationGroup)' \
+      --ldapuserfilter '(|(uid=user1)(uid=user2))' \
       --resetmigrated
 
 
@@ -96,31 +101,37 @@ Example configuration file:
 
 Content of ./etc/zimbra-bulk-create.yml
 
-     LDAP:
-  
-       server:       ldap://ldap.example.com
-       binduser:     cn=ldapsearchuser,dc=example,dc=com
-       bindpassword: secret
-       base:         dc=example,dc=com
-       filter:       (&(objectClass=Users)_LDAPFILTER_)
+    LDAP:
+        server:       ldap://ldap.example.com:389
+        binduser:     cn=ldapsearchuser,dc=example,dc=com
+        bindpassword: secret
 
-       specialfields:
-           username:   uid
-           alias:      mail
-           password:   plainpassword
+        groupbase:    o=Providers,dc=example,dc=com
+        groupfilter:  (&(objectClass=groupOfUniqueNames)_GROUPFILTER_)
 
-       fields:
-           gn:               givenname
-           sn:               sn
-           c:                c
-           zimbraPrefLocale: lang
+        userbase:     cn=Users,dc=example,dc=com
+        userfilter:   (&(objectClass=Users)_FROMGROUPFILTER__USERFILTER_)
+
+        specialfields:
+            username:   uid
+            alias:      mail
+            password:   plainpassword
+            gn:         givenname
+            sn:         sn
+
+        copykeyvaluefields:
+            gn:               givenname
+            sn:               sn
+            c:                c
+            zimbraPrefLocale: lang
 
 Run bulk creation script:
 
-     ./bin/zimbra-bulk-create.pl \
-       --defaultdomain=example.com \
-       --defaultcosid=ABCD-EFG-1234 \
-       --ldapfilter '(uid=rplessl)'
+    ./bin/zimbra-bulk-create.pl \
+        --defaultdomain   example.com \
+        --defaultcosid    ABCD-EFG-1234 \
+        --ldapgroupfilter '(cn=MigrationGroup)' \
+        --ldapuserfilter  '(uid=rplessl)'
 
      ## Selected users: ##
        rplessl
@@ -128,11 +139,11 @@ Run bulk creation script:
 
 Output will be:
 
-     createAccount rplessl@example.com PASSWORD \
-	   displayname "Roman Plessl" \
-           zimbraPasswordMustChange FALSE \
-	   zimbraPrefLocale de \
-	   gn Roman \
-	   sn Plessl \
-	   c CH \
-	   zimbraCOSid ABCD-EFG-1234
+    createAccount rplessl@example.com PASSWORD \
+        displayname "Roman Plessl" \
+        zimbraPasswordMustChange FALSE \
+        zimbraPrefLocale de \
+        gn Roman \
+        sn Plessl \
+        c CH \
+        zimbraCOSid ABCD-EFG-1234

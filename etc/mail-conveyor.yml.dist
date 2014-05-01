@@ -6,8 +6,11 @@ LDAP:
     adminbinduser:     cn=ldapadmin,dc=example,dc=com
     adminbindpassword: verysecret
 
-    base:         dc=example,dc=com
-    filter:       (&(objectClass=Users)_LDAPFILTER_)
+    groupbase:    o=Providers,dc=example,dc=com
+    groupfilter:  (&(objectClass=groupOfUniqueNames)_GROUPFILTER_)
+
+    userbase:     cn=Users,dc=example,dc=com
+    userfilter:   (&(objectClass=Users)_FROMGROUPFILTER__USERFILTER_)
 
     userkeyfields:
         username:    ldapkey1
@@ -15,27 +18,27 @@ LDAP:
         oldpassword: ldapkey3
 
     premigration:
-        ldapkey1: value1
-        ldapkey2: value1
+        ldapkey1: value10
+        ldapkey2: value20
 
     migration:
-        ldapkey1: value2
-        ldapkey2: value4
+        ldapkey1: value40
+        ldapkey2: value30
 
     postmigration:
-        ldapkey1: value3
-        ldapkey1: value3
+        ldapkey1: value10
+        ldapkey1: value30
 
 Users:
     username1: {
         username:    username1,
-        alias:       alias1@example.com
-        oldpassword: _fixed_value_from_commandline_input_, 
+        alias:       alias1@example.com,
+        oldpassword: _fixed_value_from_commandline_input_,
         newpassword: new
     }
     username2: {
         username:    username2,
-        alias:       alias2@example.com
+        alias:       alias2@example.com,
         oldpassword: old,
         newpassword: new
     }

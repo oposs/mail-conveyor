@@ -7,13 +7,15 @@ use lib "$FindBin::Bin/../thirdparty/lib/perl5";
 
 use 5.010;
 
-use Getopt::Long 2.25 qw(:config posix_default no_ignore_case);
-use Pod::Usage 1.14;
+use Getopt::Long qw(:config posix_default no_ignore_case auto_version);
+use Pod::Usage;
 use Data::Dumper;
 
 use Net::LDAP;
 use Term::ReadKey;
 use YAML::XS;
+
+our $VERSION = '1.1';
 
 # parse options
 my %opt = ();
@@ -22,6 +24,10 @@ my %opt = ();
 sub main {
     my @mandatory = (qw(defaultcosid=s defaultdomain=s));
     GetOptions(\%opt, qw(help|h man noaction|no-action|n debug ldapuserfilter=s ldapgroupfilter=s), @mandatory) or exit(1);
+
+    if ($opt{help})    { pod2usage(1);}
+    if ($opt{man})     { pod2usage(-exitstatus => 0, -verbose => 2); }
+    if ($opt{noaction}){ die "ERROR: don't know how to \"no-action\".\n";  }
 
     for my $key (map { s/=s//; $_ } @mandatory) {
         if (not defined $opt{$key}) {
@@ -34,10 +40,6 @@ sub main {
             }
         }
     }
-
-    if ($opt{help})    { pod2usage(1);}
-    if ($opt{man})     { pod2usage(-exitstatus => 0, -verbose => 2); }
-    if ($opt{noaction}){ die "ERROR: don't know how to \"no-action\".\n";  }
 
     # fetch config
     my $config = readConfig();
