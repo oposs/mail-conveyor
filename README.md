@@ -34,19 +34,19 @@ Afterwards install mail-conveyor
 addapt the config file from
 
     $ cp ./etc/mail-conveyor.yml.dist ./etc/mail-conveyor.yml
-    $ vim ./etc/mail-conveyor.yml
+    $ $EDITOR ./etc/mail-conveyor.yml
 
 
 SSH Setup for cyrusmigration
 ----------------------------
-The user configured in 
+The user configured in
 
     /opt/oss/mailconveyor/etc/mail-conveyor.yml
 
     Section ZimbraSSH
 
-should be able to ssh to the Zimbra system with public key authentication
-and without a keyring password. 
+must be able to ssh to the Zimbra system with public key authentication
+(without a keyring password).
 
 Please set up such an environment which fits your system guidelines and
 system adminstration steps.
@@ -56,17 +56,17 @@ Usage
 -----
 Migrate email accounts
 
-  $ ./bin/mail-conveyor.pl \
-      --oldserver oldserver.example.com \
-      --newserver newserver.example.com \
-      --popruxidb ./var/uidmatcher.db \
-      --debug \
-      --ldap \
-      --ldapgroupfilter '(cn=MigrationGroup)' \
-      --ldapuserfilter '(|(uid=user1)(uid=user2))' \
-      --cyrusmigration \
-      --domain example.com \
-      --cyrusfiles /home/mailsync/cyrus_data
+    $ ./bin/mail-conveyor.pl \
+        --oldserver oldserver.example.com \
+        --newserver newserver.example.com \
+        --popruxidb ./var/uidmatcher.db \
+        --debug \
+        --ldap \
+        --ldapgroupfilter '(cn=MigrationGroup)' \
+        --ldapuserfilter '(|(uid=user1)(uid=user2))' \
+        --cyrusmigration \
+        --domain example.com \
+        --cyrusfiles /home/mailsync/cyrus_data
 
 #Revert LDAP migration
 
@@ -74,13 +74,13 @@ The mail conveyor has a revert mode which resets the LDAP configration
 to the old configuration. This allows in tests to rerun the migration.
 
     $ ./bin/mail-conveyor.pl \
-      --oldserver oldserver.example.com \
-      --newserver newserver.example.com \
-      --debug \
-      --ldap \
-      --ldapgroupfilter '(cn=MigrationGroup)' \
-      --ldapuserfilter '(|(uid=user1)(uid=user2))' \
-      --resetmigrated
+        --oldserver oldserver.example.com \
+        --newserver newserver.example.com \
+        --debug \
+        --ldap \
+        --ldapgroupfilter '(cn=MigrationGroup)' \
+        --ldapuserfilter '(|(uid=user1)(uid=user2))' \
+        --resetmigrated
 
 
 Bulk Creation of Zimbra Accounts
