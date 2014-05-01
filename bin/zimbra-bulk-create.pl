@@ -115,18 +115,14 @@ sub __searchInLDAP {
 
 sub fetchUserFromLDAP {
     my $config = shift;
+
     my $groupfilter = $config->{LDAP}->{groupfilter};
     my $userfilter  = $config->{LDAP}->{userfilter};
-
-    if ($opt{debug}) {
-        say "### FILTER ###";
-        say Dumper { groupfilter => $groupfilter, userfilter => $userfilter };
-    }
 
     my ($ldap, $mesg);
     my $uids = ();
     my $users = ();
-    my $filterUsersByGroup;
+    my $filterUsersByGroup = '';
 
     if ($groupfilter) {
         $groupfilter =~ s|_GROUPFILTER_|$opt{ldapgroupfilter}|;
@@ -136,7 +132,7 @@ sub fetchUserFromLDAP {
                                          $config->{LDAP}->{groupbase},
                                          $groupfilter );
 
-        # action loop for all group entries
+        # action loop for all group entries from LDAP
         for my $node (0 .. ($mesg->entries - 1)) {
             my $entry = $mesg->entry($node);
             my $cn = $entry->get_value('cn');
@@ -153,9 +149,6 @@ sub fetchUserFromLDAP {
                 push @{$uids}, $uid;
             }
         }
-    }
-
-    if ($uids) {
         $filterUsersByGroup .= "(|";
         for my $uid (@{$uids}) {
             $filterUsersByGroup .= "($uid)"
@@ -180,11 +173,9 @@ sub fetchUserFromLDAP {
     # action loop for all user entries
     for my $node (0 .. ($mesg->entries - 1)) {
         my $entry = $mesg->entry($node);
-        my $dn = $entry->get_value('dn');
         my $uid = $entry->get_value('uid');
         if ($opt{debug}) {
-                say "## Result ##";
-                say "# $dn: $_";
+            say "# LDAP user: $uid";
         }
         for my $key (sort keys $config->{LDAP}->{specialfields}) {
             my $value = $entry->get_value($config->{LDAP}->{specialfields}->{$key});
@@ -234,24 +225,25 @@ zimbra-build-create.pl - creates a Zimbra bulk creation zmprov file for importin
 
 B<zimbra-build-create.pl> [I<options>...]
 
-     --man            show man-page and exit
- -h, --help           display this help and exit
-     --version        output version information and exit
+     --man              show man-page and exit
+ -h, --help             display this help and exit
+     --version          output version information and exit
 
-     --debug          prints debug messages
+     --debug            prints debug messages
 
-     --ldapfilter     filter extension for the LDAP search
+     --ldapgroupfilter  extend the LDAP group query search with given arguments
+     --ldapuserfilter   extend the LDAP user query search with given arguments
 
-     --defaultdomain  Default Domain for each created user
+     --defaultdomain    Default Domain for each created user
 
-     --defaultcosid   COS ID of the default COS
+     --defaultcosid     COS ID of the default COS
 
 
 =head1 DESCRIPTION
 
-This script will query an LDAP for user attributes. The LDAP search
-amount can be filtered by the filter argument in the config file and
-also with the ldapfilter argument on the command line.
+This script will query an LDAP for group and user attributes. The LDAP
+search amount can be filtered by the filter argument in the config file
+and also with LDAP group and/or user filter arguments on the command line.
 
 zimbra-build-create will print an zmprov output which can be inserted
 to the Zimbra system with
@@ -262,32 +254,39 @@ to the Zimbra system with
 
 Example configuration file:
 
-Content of ./etc/zimbra-bulk-create.yml
+Example content for ./etc/zimbra-bulk-create.yml
 
-   LDAP:
-    server:       ldap://ldap.example.com
-    binduser:     cn=ldapsearchuser,dc=example,dc=com
-    bindpassword: secret
-    base:         dc=example,dc=com
-    filter:       (&(objectClass=Users)_LDAPFILTER_)
+    LDAP:
+        server:       ldap://ldap.example.com:389
+        binduser:     cn=ldapsearchuser,dc=example,dc=com
+        bindpassword: secret
 
-    specialfields:
-        username:   uid
-        alias:      mail
-        password:   plainpassword
+        groupbase:    o=Providers,dc=example,dc=com
+        groupfilter:  (&(objectClass=groupOfUniqueNames)_GROUPFILTER_)
 
-    fields:
-        gn:               givenname
-        sn:               sn
-        c:                c
-        zimbraPrefLocale: lang
+        userbase:     cn=Users,dc=example,dc=com
+        userfilter:   (&(objectClass=Users)_FROMGROUPFILTER__USERFILTER_)
+
+        specialfields:
+            username:   uid
+            alias:      mail
+            password:   plainpassword
+            gn:         givenname
+            sn:         sn
+
+        copykeyvaluefields:
+            gn:               givenname
+            sn:               sn
+            c:                c
+            zimbraPrefLocale: lang
 
 Run bulk creation script:
 
   ./bin/zimbra-bulk-create.pl \
        --defaultdomain=example.com \
        --defaultcosid=ABCD-EFG-1234 \
-       --ldapfilter '(uid=rplessl)'
+       --ldapgroupfilter '(cn=BulkCreateUsers)'
+       --ldapuserfilter  '(uid=rplessl)'
 
    ## Selected users: ##
       rplessl
@@ -325,6 +324,7 @@ S<Roman Plessl E<lt>roman.plessl@oetiker.chE<gt>>
 =head1 HISTORY
 
  2014-04-04 rp Initial Version
+ 2014-05-01 rp Improved API and capability to filter by LDAP groups
 
 =cut
 
