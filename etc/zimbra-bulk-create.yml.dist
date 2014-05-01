@@ -1,20 +1,22 @@
 LDAP:
-    server:       ldap://ldap.example.com
+    server:       ldap://ldap.example.com:389
     binduser:     cn=ldapsearchuser,dc=example,dc=com
     bindpassword: secret
 
     groupbase:    o=Providers,dc=example,dc=com
-    groupfilter:  (&(objectClass=groupOfUniqueNames)_LDAPGROUPFILTER_)
+    groupfilter:  (&(objectClass=groupOfUniqueNames)_GROUPFILTER_)
 
     userbase:     cn=Users,dc=example,dc=com
-    userfilter:   (&(objectClass=Users)_LDAPFILTER_)
+    userfilter:   (&(objectClass=Users)_FROMGROUPFILTER__USERFILTER_)
 
     specialfields:
         username:   uid
         alias:      mail
         password:   plainpassword
+        gn:         givenname
+        sn:         sn
 
-    fields:
+    copykeyvaluefields:
         gn:               givenname
         sn:               sn
         c:                c

@@ -46,14 +46,6 @@ sub main {
     $opt{ldapgroupfilter} = $opt{ldapgroupfilter} // '';
     $opt{ldapuserfilter}  = $opt{ldapuserfilter}  // '';
 
-    my $groupfilter = $config->{LDAP}->{groupfilter};
-       $groupfilter =~ s|_LDAPGROUPFILTER_|$opt{ldapgroupfilter}|g;
-       $config->{LDAP}->{groupfilter} = $groupfilter;
-
-    my $userfilter = $config->{LDAP}->{userfilter};
-       $userfilter =~ s|_LDAPUSERFILTER_|$opt{ldapuserfilter}|g;
-       $config->{LDAP}->{userfilter} = $userfilter;
-
     my $users  = fetchUserFromLDAP($config);
 
     # ask proceed with selected users
@@ -134,8 +126,10 @@ sub fetchUserFromLDAP {
     my ($ldap, $mesg);
     my $uids = ();
     my $users = ();
+    my $filterUsersByGroup;
 
     if ($groupfilter) {
+        $groupfilter =~ s|_GROUPFILTER_|$opt{ldapgroupfilter}|;
         ($ldap, $mesg) = __searchInLDAP( $config->{LDAP}->{server},
                                          $config->{LDAP}->{binduser},
                                          $config->{LDAP}->{bindpassword},
@@ -145,25 +139,36 @@ sub fetchUserFromLDAP {
         # action loop for all group entries
         for my $node (0 .. ($mesg->entries - 1)) {
             my $entry = $mesg->entry($node);
-            my $dn = $entry->get_value('dn');
-            my @uniquemembers = @{$entry->get_value('uniquemember')};
+            my $cn = $entry->get_value('cn');
+            my @uniquemembers = $entry->get_value('uniquemember');
             if ($opt{debug}) {
                 say "## Result ##";
-                for (@uniquemembers) { say "# $dn: $_"; }
+                for (@uniquemembers) {
+                    say "# $cn: $_";
+                }
             }
             for my $dn (@uniquemembers) {
-                my $uid = shift ( split /,/, $dn );
-                push $uids, $uid;
+                my @path = split /,/, $dn;
+                my $uid = shift @path;
+                push @{$uids}, $uid;
             }
         }
     }
 
     if ($uids) {
-        $userfilter .= "|(";
+        $filterUsersByGroup .= "(|";
         for my $uid (@{$uids}) {
-            $userfilter .= "(uid=$uid)"
+            $filterUsersByGroup .= "($uid)"
         }
-        $userfilter .= ")";
+        $filterUsersByGroup .= ")";
+    }
+
+    $userfilter =~ s|_FROMGROUPFILTER_|$filterUsersByGroup|;
+    $userfilter =~ s|_USERFILTER_|$opt{ldapuserfilter}|;
+
+    if ($opt{debug}) {
+        say "### FILTER ###";
+        say Dumper { groupfilter => $groupfilter, userfilter => $userfilter };
     }
 
     ($ldap, $mesg) = __searchInLDAP(    $config->{LDAP}->{server},
@@ -185,9 +190,9 @@ sub fetchUserFromLDAP {
             my $value = $entry->get_value($config->{LDAP}->{specialfields}->{$key});
             $users->{$uid}->{specialfields}->{$key} = $value;
         }
-        for my $key (sort keys $config->{LDAP}->{fields}) {
-            my $value = $entry->get_value($config->{LDAP}->{fields}->{$key});
-            $users->{$uid}->{fields}->{$key} = $value;
+        for my $key (sort keys $config->{LDAP}->{copykeyvaluefields}) {
+            my $value = $entry->get_value($config->{LDAP}->{copykeyvaluefields}->{$key});
+            $users->{$uid}->{copykeyvaluefields}->{$key} = $value;
         }
     }
 
@@ -207,10 +212,10 @@ sub printZmprov {
         $create .= 'createAccount'.' ';
         $create .= $user.'@'.$opt{defaultdomain}. ' ';
         $create .= $users->{$user}->{specialfields}->{password} . ' \\' . "\n";
-        $create .= "\t" . 'displayname ' . "\"$users->{$user}->{fields}->{gn} $users->{$user}->{fields}->{sn}\"" . ' \\' . "\n";
+        $create .= "\t" . 'displayname ' . "\"$users->{$user}->{specialfields}->{gn} $users->{$user}->{specialfields}->{sn}\"" . ' \\' . "\n";
         $create .= "\t" . 'zimbraPasswordMustChange FALSE' . ' \\' . "\n";
-        for my $k (keys $users->{$user}->{fields}) {
-            $create .= "\t" . $k . ' ' . $users->{$user}->{fields}->{$k} . ' \\' ."\n";
+        for my $k (keys $users->{$user}->{copykeyvaluefields}) {
+            $create .= "\t" . $k . ' ' . $users->{$user}->{copykeyvaluefields}->{$k} . ' \\' ."\n";
         }
         $create .= "\t" . 'zimbraCOSid ' . $opt{defaultcosid} . "\n";
         print $create;
