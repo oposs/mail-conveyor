@@ -140,7 +140,7 @@ Run bulk creation script:
 Output will be:
 
     createAccount rplessl@example.com PASSWORD \
-        displayname "Roman Plessl" \
+        displayName "Roman Plessl" \
         zimbraPasswordMustChange FALSE \
         zimbraPrefLocale de \
         gn Roman \
