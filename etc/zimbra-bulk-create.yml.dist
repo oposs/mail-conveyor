@@ -20,5 +20,4 @@ LDAP:
         gn:               givenname
         sn:               sn
         c:                c
-        zimbraPrefLocale: lang  
-
+        zimbraPrefLocale: lang

@@ -71,12 +71,17 @@ sub readConfig {
 sub proceedWithSelectedUsers {
     my $users = shift;
     say "## Selected users: ##";
+    unless (ref $users eq 'HASH') {
+        say STDERR "No Users can be selected";
+        exit 254;
+    }
     for my $user (sort keys $users) {
         say " $user ";
     }
     say "Do you want proceed? Then type here YES";
     chomp(my $proceed = <>);
     unless ($proceed eq 'YES') {
+        say STDERR "no given OK for processing";
         exit 255;
     }
 }
@@ -205,7 +210,7 @@ sub printZmprov {
         $create .= 'createAccount'.' ';
         $create .= $user.'@'.$opt{defaultdomain}. ' ';
         $create .= $users->{$user}->{specialfields}->{password} . ' \\' . "\n";
-        $create .= "\t" . 'displayname ' . "\"$users->{$user}->{specialfields}->{gn} $users->{$user}->{specialfields}->{sn}\"" . ' \\' . "\n";
+        $create .= "\t" . 'displayName ' . "\"$users->{$user}->{specialfields}->{gn} $users->{$user}->{specialfields}->{sn}\"" . ' \\' . "\n";
         $create .= "\t" . 'zimbraPasswordMustChange FALSE' . ' \\' . "\n";
         for my $k (keys $users->{$user}->{copykeyvaluefields}) {
             $create .= "\t" . $k . ' ' . $users->{$user}->{copykeyvaluefields}->{$k} . ' \\' ."\n";

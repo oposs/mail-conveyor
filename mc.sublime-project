@@ -1,17 +1,15 @@
 {
-	"folders":
-	[
-		{
-			"follow_symlinks": false,
-			"name": "mail-conveyor",
-			"path": ".",
-			"file_exclude_patterns": ["*~",".nfs*","mc.sublime-project"],
-		},
-		
-	],
-	    "settings": 
+    "folders":
+    [
+        {
+            "follow_symlinks": false,
+            "name": "mail-conveyor",
+            "path": ".",
+            "file_exclude_patterns": ["*~",".nfs*","mc.sublime-project"],
+        },
+    ],
+    "settings":
     {
         "tab_size": 4
     }
-
 }
