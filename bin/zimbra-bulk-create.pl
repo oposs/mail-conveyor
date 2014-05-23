@@ -62,26 +62,26 @@ sub main {
 sub readConfig {
     my $config = YAML::XS::LoadFile("$FindBin::Bin/../etc/zimbra-bulk-create.yml");
     if ($opt{debug}) {
-        say "### Config ###";
-        say Dumper $config;
+        say STDERR "### Config ###";
+        say STDERR Dumper $config;
     }
     return $config;
 }
 
 sub proceedWithSelectedUsers {
     my $users = shift;
-    say "## Selected users: ##";
+    say STDERR "## Selected users: ##";
     unless (ref $users eq 'HASH') {
         say STDERR "No Users can be selected";
         exit 254;
     }
     for my $user (sort keys $users) {
-        say " $user ";
+        say STDERR "$user ";
     }
-    say "Do you want proceed? Then type here YES";
+    say STDERR "Do you want proceed? Then type here YES";
     chomp(my $proceed = <>);
-    unless ($proceed eq 'YES') {
-        say STDERR "no given OK for processing";
+    unless ($proceed =~ /YES/i) {
+        say STDERR "ok ... stopping here";
         exit 255;
     }
 }
@@ -107,12 +107,12 @@ sub __searchInLDAP {
 
     if ($opt{debug}) {
         # print entries in debug mode
-        say "Nodes selected in LDAP:";
+        say STDERR "Nodes selected in LDAP:";
         if ($mesg->entries == 0) {
-            say "--> no entries found in LDAP <--";
+            say STDERR "--> no entries found in LDAP <--";
         }
         if ($mesg->entries > 1) {
-            say "--> " . $mesg->entries." entries found in LDAP <--";
+            say STDERR "--> " . $mesg->entries." entries found in LDAP <--";
         }
     }
     return ($ldap, $mesg);
@@ -142,9 +142,9 @@ sub fetchUserFromLDAP {
             my $cn = $entry->get_value('cn');
             my @uniquemembers = $entry->get_value('uniquemember');
             if ($opt{debug}) {
-                say "## Result ##";
+                say STDERR "## Result ##";
                 for (@uniquemembers) {
-                    say "# $cn: $_";
+                    say STDERR "# $cn: $_";
                 }
             }
             for my $dn (@uniquemembers) {
@@ -168,8 +168,8 @@ sub fetchUserFromLDAP {
         $userfilter =~ s|_USERFILTER_|$opt{ldapuserfilter}|;
 
         if ($opt{debug}) {
-            say "### FILTER ###";
-            say Dumper { groupfilter => $groupfilter, userfilter => $userfilter };
+            say STDERR "### FILTER ###";
+            say STDERR Dumper { groupfilter => $groupfilter, userfilter => $userfilter };
         }
 
         ($ldap, $mesg) = __searchInLDAP(    $config->{LDAP}->{server},
@@ -183,7 +183,7 @@ sub fetchUserFromLDAP {
             my $entry = $mesg->entry($node);
             my $uid = $entry->get_value('uid');
             if ($opt{debug}) {
-                say "# LDAP user: $uid";
+                say STDERR "# LDAP user: $uid";
             }
             for my $key (sort keys $config->{LDAP}->{specialfields}) {
                 my $value = $entry->get_value($config->{LDAP}->{specialfields}->{$key});
@@ -198,8 +198,8 @@ sub fetchUserFromLDAP {
     $ldap->unbind();
 
     if ($opt{debug}) {
-        say "### Users ###";
-        say Dumper $users;
+        say STDERR "### Users ###";
+        say STDERR Dumper $users;
     }
     return $users;
 }
