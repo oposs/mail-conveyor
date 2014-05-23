@@ -94,18 +94,16 @@ sub __searchInLDAP {
     my $filter = shift;
 
     # bind to LDAP server
-    my $ldap = Net::LDAP->new($host);
+    my $ldap = Net::LDAP->new($host, onerror => 'die');
     my $mesg = $ldap->bind(
         $binduser ,
         password => $bindpassword );
-    $mesg->code && die $mesg->error;
 
     # search and filter entries in LDAP
     $mesg = $ldap->search(
         base   => $base,
         filter => $filter,
     );
-    $mesg->code && die $mesg->error;
 
     if ($opt{debug}) {
         # print entries in debug mode
