@@ -122,7 +122,6 @@ sub fetchUserFromLDAP {
     my $config = shift;
 
     my $groupfilter = $config->{LDAP}->{groupfilter};
-    my $userfilter  = $config->{LDAP}->{userfilter};
 
     my ($ldap, $mesg);
     my $uids = ();
@@ -164,6 +163,7 @@ sub fetchUserFromLDAP {
             last if $uidCount++ > 100;
         }
         $filterUsersByGroup .= ")";
+        my $userfilter  = $config->{LDAP}->{userfilter};
         $userfilter =~ s|_FROMGROUPFILTER_|$filterUsersByGroup|;
         $userfilter =~ s|_USERFILTER_|$opt{ldapuserfilter}|;
 
