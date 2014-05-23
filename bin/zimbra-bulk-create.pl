@@ -156,44 +156,47 @@ sub fetchUserFromLDAP {
                 push @{$uids}, $uid;
             }
         }
-        $filterUsersByGroup .= "(|";
-        for my $uid (@{$uids}) {
-            $filterUsersByGroup .= "($uid)"
+    }
+
+    while (@$uids){
+        my $uidCount = 0;    
+        my $filterUsersByGroup = '(|';
+        while (my $uid = shift @$uids){
+            $filterUsersByGroup .= "($uid)";
+            last if $uidCount++ > 100;
         }
         $filterUsersByGroup .= ")";
-    }
+        $userfilter =~ s|_FROMGROUPFILTER_|$filterUsersByGroup|;
+        $userfilter =~ s|_USERFILTER_|$opt{ldapuserfilter}|;
 
-    $userfilter =~ s|_FROMGROUPFILTER_|$filterUsersByGroup|;
-    $userfilter =~ s|_USERFILTER_|$opt{ldapuserfilter}|;
-
-    if ($opt{debug}) {
-        say "### FILTER ###";
-        say Dumper { groupfilter => $groupfilter, userfilter => $userfilter };
-    }
-
-    ($ldap, $mesg) = __searchInLDAP(    $config->{LDAP}->{server},
-                                        $config->{LDAP}->{binduser},
-                                        $config->{LDAP}->{bindpassword},
-                                        $config->{LDAP}->{userbase},
-                                        $userfilter );
-
-    # action loop for all user entries
-    for my $node (0 .. ($mesg->entries - 1)) {
-        my $entry = $mesg->entry($node);
-        my $uid = $entry->get_value('uid');
         if ($opt{debug}) {
-            say "# LDAP user: $uid";
+            say "### FILTER ###";
+            say Dumper { groupfilter => $groupfilter, userfilter => $userfilter };
         }
-        for my $key (sort keys $config->{LDAP}->{specialfields}) {
-            my $value = $entry->get_value($config->{LDAP}->{specialfields}->{$key});
-            $users->{$uid}->{specialfields}->{$key} = $value;
-        }
-        for my $key (sort keys $config->{LDAP}->{copykeyvaluefields}) {
-            my $value = $entry->get_value($config->{LDAP}->{copykeyvaluefields}->{$key});
-            $users->{$uid}->{copykeyvaluefields}->{$key} = $value;
+
+        ($ldap, $mesg) = __searchInLDAP(    $config->{LDAP}->{server},
+                                            $config->{LDAP}->{binduser},
+                                            $config->{LDAP}->{bindpassword},
+                                            $config->{LDAP}->{userbase},
+                                            $userfilter );
+
+        # action loop for all user entries
+        for my $node (0 .. ($mesg->entries - 1)) {
+            my $entry = $mesg->entry($node);
+            my $uid = $entry->get_value('uid');
+            if ($opt{debug}) {
+                say "# LDAP user: $uid";
+            }
+            for my $key (sort keys $config->{LDAP}->{specialfields}) {
+                my $value = $entry->get_value($config->{LDAP}->{specialfields}->{$key});
+                $users->{$uid}->{specialfields}->{$key} = $value;
+            }
+            for my $key (sort keys $config->{LDAP}->{copykeyvaluefields}) {
+                my $value = $entry->get_value($config->{LDAP}->{copykeyvaluefields}->{$key});
+                $users->{$uid}->{copykeyvaluefields}->{$key} = $value;
+            }
         }
     }
-
     $ldap->unbind();
 
     if ($opt{debug}) {
