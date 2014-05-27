@@ -313,11 +313,11 @@ sub matchPopUid {
          '-|',
          "$FindBin::Bin/../../popruxi/bin/uidmatcher.pl",
          '--oldserver', $user->{oldserver}   ? $user->{oldserver}   : $opt{oldserver},
-         '--olduser',     $user->{username}    ? $user->{username}    : $opt{oldusername},
-         '--oldpass',     $user->{oldpassword} ? $user->{oldpassword} : $opt{oldpassword},
-         '--newserver',    $user->{newserver}   ? $user->{newserver}   : $opt{newserver},
-         '--newuser',     $user->{username}    ? $user->{username}    : $opt{newusername},
-         '--newpass',     $user->{newpassword} ? $user->{newpassword} : $opt{newpassword},
+         '--olduser',   $user->{username}    ? $user->{username}    : $opt{oldusername},
+         '--oldpass',   $user->{oldpassword} ? $user->{oldpassword} : $opt{oldpassword},
+         '--newserver', $user->{newserver}   ? $user->{newserver}   : $opt{newserver},
+         '--newuser',   $user->{username}    ? $user->{username}    : $opt{newusername},
+         '--newpass',   $user->{newpassword} ? $user->{newpassword} : $opt{newpassword},
          '--dbfile',    $opt{popruxidb}
      ) or do { say STDERR "Cannot sync UIDLs"; };
 
@@ -344,9 +344,7 @@ sub getZimbraProvisioningCommands {
     for my $user (keys $users) {
         push @args, "$users->{$user}->{username}=$users->{$user}->{alias}";
     }
-
-    open ($temp_fh);
-    open ($cyrus2zmprov,
+    open($cyrus2zmprov,
           '-|',
           @args
       ) or do { say STDERR "Cannot run cyrus2zmprov script"; };
@@ -355,7 +353,6 @@ sub getZimbraProvisioningCommands {
         print $temp_fh $_;
     }
     close($cyrus2zmprov);
-    close($temp_fh);
 }
 
 sub activateZimbraProvisioningCommands {
