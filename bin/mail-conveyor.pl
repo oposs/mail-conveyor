@@ -398,7 +398,7 @@ sub activateZimbraProvisioningCommands {
         '-l', $config->{ZimbraSSH}->{login},
         '-i', $config->{ZimbraSSH}->{keyfile},
         $config->{ZimbraSSH}->{host},
-        '/usr/bin/unlink',
+        '/usr/bin/env unlink',
         "$temp_filename_dir/$temp_filename_name"
     );
     open($fh,
