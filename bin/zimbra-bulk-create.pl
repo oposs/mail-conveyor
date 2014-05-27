@@ -15,7 +15,7 @@ use Net::LDAP;
 use Term::ReadKey;
 use YAML::XS;
 
-our $VERSION = '1.1';
+our $VERSION = '1.7';
 
 # parse options
 my %opt = ();
@@ -158,11 +158,12 @@ sub fetchUserFromLDAP {
     while (@$uids){
         my $uidCount = 0;    
         my $filterUsersByGroup = '(|';
-        while (my $uid = shift @$uids){
+        while (my $uid = shift @$uids) {
             $filterUsersByGroup .= "($uid)";
             last if $uidCount++ > 100;
         }
         $filterUsersByGroup .= ")";
+
         my $userfilter  = $config->{LDAP}->{userfilter};
         $userfilter =~ s|_FROMGROUPFILTER_|$filterUsersByGroup|;
         $userfilter =~ s|_USERFILTER_|$opt{ldapuserfilter}|;
