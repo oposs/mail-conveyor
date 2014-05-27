@@ -214,7 +214,7 @@ sub printZmprov {
         $create .= "\t" . 'displayName ' . "\"$users->{$user}->{specialfields}->{gn} $users->{$user}->{specialfields}->{sn}\"" . ' \\' . "\n";
         $create .= "\t" . 'zimbraPasswordMustChange FALSE' . ' \\' . "\n";
         for my $k (keys $users->{$user}->{copykeyvaluefields}) {
-            $create .= "\t" . $k . ' ' . $users->{$user}->{copykeyvaluefields}->{$k} . ' \\' ."\n";
+            $create .= "\t" . $k . ' "' . $users->{$user}->{copykeyvaluefields}->{$k} . '" \\' ."\n";
         }
         $create .= "\t" . 'zimbraCOSid ' . $opt{defaultcosid} . "\n";
         print $create;
