@@ -235,19 +235,20 @@ zimbra-build-create.pl - creates a Zimbra bulk creation zmprov file for importin
 
 B<zimbra-build-create.pl> [I<options>...]
 
-     --man              show man-page and exit
- -h, --help             display this help and exit
-     --version          output version information and exit
+     --man                  show man-page and exit
+ -h, --help                 display this help and exit
+     --version              output version information and exit
 
-     --debug            prints debug messages
+     --debug                prints debug messages
 
-     --ldapgroupfilter  extend the LDAP group query search with given arguments
-     --ldapuserfilter   extend the LDAP user query search with given arguments
+     --ldapgroupfilter      extend the LDAP group query search with given arguments
+     --ldapuserfilter       extend the LDAP user query search with given arguments
 
-     --defaultdomain    Default Domain for each created user
+     --defaultdomain        Default Domain for each created user
 
-     --defaultcosid     COS ID of the default COS
-
+     --defaultcosid         COS ID of the default COS
+     
+     --autoproceedwithusers Proceed without questions
 
 =head1 DESCRIPTION
 
