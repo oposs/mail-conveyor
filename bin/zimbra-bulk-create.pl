@@ -207,12 +207,15 @@ sub fetchUserFromLDAP {
 sub printZmprov {
     my $users = shift;
     for my $user (sort keys $users){
+        my $displayName = $users->{$user}->{specialfields}->{gn}.' '.$users->{$user}->{specialfields}->{sn};
         my $create;
         $create .= 'createAccount'.' ';
         $create .= $user.'@'.$opt{defaultdomain}. ' ';
         $create .= $users->{$user}->{specialfields}->{password} . ' \\' . "\n";
-        $create .= "\t" . 'displayName ' . "\"$users->{$user}->{specialfields}->{gn} $users->{$user}->{specialfields}->{sn}\"" . ' \\' . "\n";
+        $create .= "\t" . 'displayName ' . "\"$displayName\"" . ' \\' . "\n";
         $create .= "\t" . 'zimbraPasswordMustChange FALSE' . ' \\' . "\n";
+        $create .= "\t" . 'zimbraPrefFromAddressType sendAs' . ' \\' . "\n";
+        $create .= "\t" . 'zimbraPrefFromDisplay' . qq{"$displayName"} . ' \\' . "\n"; 
         for my $k (keys $users->{$user}->{copykeyvaluefields}) {
             $create .= "\t" . $k . ' "' . $users->{$user}->{copykeyvaluefields}->{$k} . '" \\' ."\n";
         }
