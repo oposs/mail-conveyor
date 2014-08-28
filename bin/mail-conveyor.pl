@@ -17,7 +17,7 @@ use Net::LDAP;
 use Term::ReadKey;
 use YAML::XS;
 
-our $VERSION = '1.1';
+our $VERSION = '1.7';
 
 # parse options
 my %opt = ();
@@ -60,7 +60,7 @@ sub main {
 
     # special mode for revert LDAP field changing
     if ($opt{resetmigrated}) {
-        say "Reset migrated users now";
+        say STDERR "Reset migrated users now";
         for my $user (keys $users) {
             $filter = $config->{LDAP}->{userfilter};
             $filter =~ s|_FROMGROUPFILTER_||;
@@ -96,8 +96,8 @@ sub main {
 sub readConfig {
     my $config = YAML::XS::LoadFile("$FindBin::Bin/../etc/mail-conveyor.yml");
     if ($opt{debug}) {
-        say "### Config ###";
-        say Dumper $config;
+        say STDERR "### Config ###";
+        say STDERR Dumper $config;
     }
     return $config;
 }
@@ -128,7 +128,7 @@ sub fetchUserFromFile {
         }
     }
     if ($opt{debug}) {
-        say"### Users ###\n", Dumper $users;
+        say STDERR "### Users ###\n", Dumper $users;
     }
     return $users;
 }
@@ -156,12 +156,12 @@ sub __searchInLDAP {
 
     if ($opt{debug}) {
         # print entries in debug mode
-        say "Nodes selected in LDAP:";
+        say STDERR "Nodes selected in LDAP:";
         if ($mesg->entries == 0) {
-            say "--> no entries found in LDAP <--";
+            say STDERR "--> no entries found in LDAP <--";
         }
         if ($mesg->entries > 1) {
-            say "--> " . $mesg->entries." entries found in LDAP <--";
+            say STDERR "--> " . $mesg->entries." entries found in LDAP <--";
         }
     }return ($ldap, $mesg);
 
@@ -171,11 +171,8 @@ sub fetchUserFromLDAP {
     my $config = shift;
 
     my $groupfilter = $config->{LDAP}->{groupfilter};
-    my $userfilter  = $config->{LDAP}->{userfilter};
-
     # apply command line filter arguments
     $opt{ldapgroupfilter} = $opt{ldapgroupfilter} // '';
-    $opt{ldapuserfilter}  = $opt{ldapuserfilter}  // '';
 
     my ($ldap, $mesg);
     my $uids = ();
@@ -196,9 +193,9 @@ sub fetchUserFromLDAP {
             my $cn = $entry->get_value('cn');
             my @uniquemembers = $entry->get_value('uniquemember');
             if ($opt{debug}) {
-                say "## Result ##";
+                say STDERR "## Result ##";
                 for (@uniquemembers) {
-                    say "# $cn: $_";
+                    say STDERR "# $cn: $_";
                 }
             }
             for my $dn (@uniquemembers) {
@@ -207,50 +204,58 @@ sub fetchUserFromLDAP {
                 push @{$uids}, $uid;
             }
         }
-        $filterUsersByGroup .= "(|";
-        for my $uid (@{$uids}) {
-            $filterUsersByGroup .= "($uid)"
+    }
+
+    # only process <= 100 entries in one round
+    while (@$uids){
+        my $uidCount = 0;
+        my $filterUsersByGroup = '(|';
+        while (my $uid = shift @$uids) {
+            $filterUsersByGroup .= "($uid)";
+            last if $uidCount++ > 100;
         }
         $filterUsersByGroup .= ")";
-    }
 
-    $userfilter =~ s|_FROMGROUPFILTER_|$filterUsersByGroup|;
-    $userfilter =~ s|_USERFILTER_|$opt{ldapuserfilter}|;
+        my $userfilter  = $config->{LDAP}->{userfilter};
+        # apply command line filter arguments
+        $opt{ldapuserfilter}  = $opt{ldapuserfilter}  // '';
+        $userfilter =~ s|_FROMGROUPFILTER_|$filterUsersByGroup|;
+        $userfilter =~ s|_USERFILTER_|$opt{ldapuserfilter}|;
 
-    if ($opt{debug}) {
-        say "### FILTER ###";
-        say Dumper { groupfilter => $groupfilter, userfilter => $userfilter };
-    }
-
-    ($ldap, $mesg) = __searchInLDAP(    $config->{LDAP}->{server},
-                                        $config->{LDAP}->{binduser},
-                                        $config->{LDAP}->{bindpassword},
-                                        $config->{LDAP}->{userbase},
-                                        $userfilter );
-
-    # action loop for all entries
-    for my $node (0 .. ($mesg->entries - 1)) {
-        my $entry = $mesg->entry($node);
-        my $uid = $entry->get_value('uid');
         if ($opt{debug}) {
-            say "# LDAP user: $uid";
+            say STDERR "### FILTER ###";
+            say STDERR Dumper { groupfilter => $groupfilter, userfilter => $userfilter };
         }
-        for my $key (sort keys $config->{LDAP}->{userkeyfields}) {
-            my $value = $config->{LDAP}->{userkeyfields}->{$key};
-            if ($value =~ m/^_/) {
-                $value = $opt{$key};
-            } else {
-                $value = $entry->get_value($config->{LDAP}->{userkeyfields}->{$key});
+
+        ($ldap, $mesg) = __searchInLDAP(    $config->{LDAP}->{server},
+                                            $config->{LDAP}->{binduser},
+                                            $config->{LDAP}->{bindpassword},
+                                            $config->{LDAP}->{userbase},
+                                            $userfilter );
+
+        # action loop for all entries
+        for my $node (0 .. ($mesg->entries - 1)) {
+            my $entry = $mesg->entry($node);
+            my $uid = $entry->get_value('uid');
+            if ($opt{debug}) {
+                say STDERR "# LDAP user: $uid";
             }
-            $users->{$uid}->{$key} = $value;
+            for my $key (sort keys $config->{LDAP}->{userkeyfields}) {
+                my $value = $config->{LDAP}->{userkeyfields}->{$key};
+                if ($value =~ m/^_/) {
+                    $value = $opt{$key};
+                } else {
+                    $value = $entry->get_value($config->{LDAP}->{userkeyfields}->{$key});
+                }
+                $users->{$uid}->{$key} = $value;
+            }
         }
     }
-
     $ldap->unbind();
 
     if ($opt{debug}) {
-        say "### Users ###";
-        say Dumper $users;
+        say STDERR "### Users ###";
+        say STDERR Dumper $users;
     }
     return $users;
 }
@@ -308,11 +313,11 @@ sub matchPopUid {
          '-|',
          "$FindBin::Bin/../../popruxi/bin/uidmatcher.pl",
          '--oldserver', $user->{oldserver}   ? $user->{oldserver}   : $opt{oldserver},
-         '--olduser',     $user->{username}    ? $user->{username}    : $opt{oldusername},
-         '--oldpass',     $user->{oldpassword} ? $user->{oldpassword} : $opt{oldpassword},
-         '--newserver',    $user->{newserver}   ? $user->{newserver}   : $opt{newserver},
-         '--newuser',     $user->{username}    ? $user->{username}    : $opt{newusername},
-         '--newpass',     $user->{newpassword} ? $user->{newpassword} : $opt{newpassword},
+         '--olduser',   $user->{username}    ? $user->{username}    : $opt{oldusername},
+         '--oldpass',   $user->{oldpassword} ? $user->{oldpassword} : $opt{oldpassword},
+         '--newserver', $user->{newserver}   ? $user->{newserver}   : $opt{newserver},
+         '--newuser',   $user->{username}    ? $user->{username}    : $opt{newusername},
+         '--newpass',   $user->{newpassword} ? $user->{newpassword} : $opt{newpassword},
          '--dbfile',    $opt{popruxidb}
      ) or do { say STDERR "Cannot sync UIDLs"; };
 
@@ -339,9 +344,7 @@ sub getZimbraProvisioningCommands {
     for my $user (keys $users) {
         push @args, "$users->{$user}->{username}=$users->{$user}->{alias}";
     }
-
-    open ($temp_fh);
-    open ($cyrus2zmprov,
+    open($cyrus2zmprov,
           '-|',
           @args
       ) or do { say STDERR "Cannot run cyrus2zmprov script"; };
@@ -350,7 +353,6 @@ sub getZimbraProvisioningCommands {
         print $temp_fh $_;
     }
     close($cyrus2zmprov);
-    close($temp_fh);
 }
 
 sub activateZimbraProvisioningCommands {
@@ -396,7 +398,7 @@ sub activateZimbraProvisioningCommands {
         '-l', $config->{ZimbraSSH}->{login},
         '-i', $config->{ZimbraSSH}->{keyfile},
         $config->{ZimbraSSH}->{host},
-        '/usr/bin/unlink',
+        '/usr/bin/env unlink',
         "$temp_filename_dir/$temp_filename_name"
     );
     open($fh,
@@ -452,6 +454,9 @@ the toolboxes and scripts of imapsync and popruxi.
 
 This script will get an amount of users from LDAP or from a flatfile
 and will process the email migration for each user.
+
+Users fetched from LDAP groups will be divided in 100 user chunks, so
+the LDAP server can handle this not to long requests.
 
 =head2 Example
 
