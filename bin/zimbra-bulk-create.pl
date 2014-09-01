@@ -23,7 +23,7 @@ my %opt = ();
 # main loop
 sub main {
     my @mandatory = (qw(defaultcosid=s defaultdomain=s));
-    GetOptions(\%opt, qw(help|h man noaction|no-action|n debug ldapuserfilter=s ldapgroupfilter=s autoproceedwithusers), @mandatory) or exit(1);
+    GetOptions(\%opt, qw(help|h man noaction|no-action|n debug ldapuserfilter=s ldapgroupfilter=s autoproceedwithusers update_from), @mandatory) or exit(1);
 
     if ($opt{help})    { pod2usage(1);}
     if ($opt{man})     { pod2usage(-exitstatus => 0, -verbose => 2); }
@@ -54,7 +54,12 @@ sub main {
     proceedWithSelectedUsers($users) unless ($opt{autoproceedwithusers});
 
     # print zmprov commands to STDOUT
-    printZmprov($users);
+    if ($opt{update_from}){
+        printZmprovUpdateFrom($users);
+    }
+    else {
+        printZmprovCreate($users);
+    }
     exit 0;
 }
 
@@ -206,10 +211,11 @@ sub fetchUserFromLDAP {
     return $users;
 }
 
-sub printZmprov {
+sub printZmprovCreate {
     my $users = shift;
-    for my $user (sort keys $users){
+    for my $user (sort keys %$users){
         my $displayName = $users->{$user}->{specialfields}->{gn}.' '.$users->{$user}->{specialfields}->{sn};
+        my $alias = $users->{$user}->{specialfields}->{alias};
         my $create;
         $create .= 'createAccount'.' ';
         $create .= $user.'@'.$opt{defaultdomain}. ' ';
@@ -218,11 +224,23 @@ sub printZmprov {
         $create .= "\t" . 'zimbraPasswordMustChange FALSE' . ' \\' . "\n";
         $create .= "\t" . 'zimbraPrefFromAddressType sendAs' . ' \\' . "\n";
         $create .= "\t" . 'zimbraPrefFromDisplay' . qq{"$displayName"} . ' \\' . "\n"; 
+        $create .= "\t" . 'zimbraPrefFromAddress' . qq{"$alias"} . ' \\' . "\n"; 
         for my $k (keys $users->{$user}->{copykeyvaluefields}) {
             $create .= "\t" . $k . ' "' . $users->{$user}->{copykeyvaluefields}->{$k} . '" \\' ."\n";
         }
         $create .= "\t" . 'zimbraCOSid ' . $opt{defaultcosid} . "\n";
         print $create;
+    }
+}
+
+sub printZmprovUpdateFrom {
+    my $users = shift;
+    for my $user (sort keys %$users){
+        my $displayName = $users->{$user}->{specialfields}->{gn}.' '.$users->{$user}->{specialfields}->{sn};
+        my $alias = $users->{$user}->{specialfields}->{alias};
+        print  qq{modifyAccount $user zimbraPrefFromAddressType sendAs\n},
+               qq{modifyAccount $user zimbraPrefFromDisplay "$displayName"\n},
+               qq{modifyAccount $user zimbraPrefFromAddress $alias\n};
     }
 }
 
@@ -252,6 +270,8 @@ B<zimbra-build-create.pl> [I<options>...]
      --defaultcosid         COS ID of the default COS
      
      --autoproceedwithusers Proceed without questions
+
+     --update_from          Just update the from settings with latest ldap data
 
 =head1 DESCRIPTION
 
