@@ -223,8 +223,8 @@ sub printZmprovCreate {
         $create .= "\t" . 'displayName ' . "\"$displayName\"" . ' \\' . "\n";
         $create .= "\t" . 'zimbraPasswordMustChange FALSE' . ' \\' . "\n";
         $create .= "\t" . 'zimbraPrefFromAddressType sendAs' . ' \\' . "\n";
-        $create .= "\t" . 'zimbraPrefFromDisplay' . qq{"$displayName"} . ' \\' . "\n"; 
-        $create .= "\t" . 'zimbraPrefFromAddress' . qq{"$alias"} . ' \\' . "\n"; 
+        $create .= "\t" . 'zimbraPrefFromDisplay' . qq{ "$displayName"} . ' \\' . "\n"; 
+        $create .= "\t" . 'zimbraPrefFromAddress' . qq{ "$alias"} . ' \\' . "\n"; 
         for my $k (keys $users->{$user}->{copykeyvaluefields}) {
             $create .= "\t" . $k . ' "' . $users->{$user}->{copykeyvaluefields}->{$k} . '" \\' ."\n";
         }
