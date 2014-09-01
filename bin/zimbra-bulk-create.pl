@@ -238,9 +238,10 @@ sub printZmprovUpdateFrom {
     for my $user (sort keys %$users){
         my $displayName = $users->{$user}->{specialfields}->{gn}.' '.$users->{$user}->{specialfields}->{sn};
         my $alias = $users->{$user}->{specialfields}->{alias};
-        print  qq{modifyAccount $user zimbraPrefFromAddressType sendAs\n},
-               qq{modifyAccount $user zimbraPrefFromDisplay "$displayName"\n},
-               qq{modifyAccount $user zimbraPrefFromAddress $alias\n};
+        my $uid = $user . '@' . $opt{defaultdomain};
+        print  qq{modifyAccount $uid zimbraPrefFromAddressType sendAs\n},
+               qq{modifyAccount $uid zimbraPrefFromDisplay "$displayName"\n},
+               qq{modifyAccount $uid zimbraPrefFromAddress $alias\n};
     }
 }
 
