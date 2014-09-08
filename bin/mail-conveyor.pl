@@ -85,9 +85,10 @@ sub main {
         $filter =~ s|_FROMGROUPFILTER_||;
         $filter =~ s|_USERFILTER_|(uid=$user)|g;
         writeLDAPAttribute($config, $filter, $config->{LDAP}->{migration});
-        syncEmailsImap($users->{$user});
+        syncEmailsImap($users->{$user},1); # with delete
         matchPopUid($users->{$user});
         writeLDAPAttribute($config, $filter, $config->{LDAP}->{postmigration});
+        syncEmailsImap($users->{$user}); # without delete
     }
     exit 0;
 }
@@ -286,6 +287,7 @@ sub writeLDAPAttribute {
 
 sub syncEmailsImap {
     my $user = shift;
+    my $delete = shift;
     my $fh;
     open($fh,
          '-|',
@@ -296,7 +298,7 @@ sub syncEmailsImap {
          '--host2',      $user->{newserver}   ? $user->{newserver}   : $opt{newserver},
          '--user2',      $user->{username}    ? $user->{username}    : $opt{newusername},
          '--password2',  $user->{newpassword} ? $user->{newpassword} : $opt{newpassword},
-         '--delete2',
+         $delete ? ('--delete2') : (),
      ) or do { say STDERR "Cannot Sync with imapsync"; };
 
     while (<$fh>) {
